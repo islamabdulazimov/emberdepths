@@ -3,6 +3,7 @@ const Items = preload("res://data/items.gd")
 const Blocks = preload("res://data/blocks.gd")
 const Rules = preload("res://data/combat_rules.gd")
 const Trees = preload("res://data/trees.gd")
+const Structures = preload("res://data/structures.gd")
 
 static func integer(value: Variant, low: int, high: int) -> bool:
  return (value is int or value is float) and is_finite(float(value)) and value == floor(value) and value >= low and value <= high
@@ -75,13 +76,24 @@ static func validate(value: Variant) -> String:
   if not cell(position, width, depth) or not integer(world.blocks[position], -1, 2147483647) or (world.blocks[position] != -1 and not Blocks.DEFINITIONS.has(world.blocks[position])):
    return "Неверный блок в журнале"
  for position in world.walls:
-  if not cell(position, width, depth) or not integer(world.walls[position], -1, 2) or not world.walls[position] in [-1, 1, 2]:
+  if not cell(position, width, depth) or not integer(world.walls[position], -1, 2147483647) or (world.walls[position] != -1 and not Blocks.WALLS.has(world.walls[position])):
    return "Неверная стена в журнале"
  var torch_cells: Dictionary = {}
  for position in world.torches:
   if not cell(position, width, depth) or torch_cells.has(position):
    return "Неверный факел в журнале"
   torch_cells[position] = true
+ if world.has("doors"):
+  if not world.doors is Dictionary or world.doors.size() > Structures.MAX_DOORS:
+   return "Неверный список дверей"
+  var occupied: Dictionary = {}
+  for anchor in world.doors:
+   if not cell(anchor,width,depth) or anchor.y < Structures.DOOR_HEIGHT-1 or anchor.y >= depth-1 or not world.doors[anchor] is bool:
+    return "Неверная дверь"
+   if world.blocks.get(anchor+Vector2i.DOWN,0) == -1: return "Дверь без опоры"
+   for part in Structures.door_cells(anchor):
+    if occupied.has(part) or torch_cells.has(part) or world.blocks.get(part,-1) != -1: return "Дверь пересекает постройку"
+    occupied[part] = true
  if world.has("trees"):
   if not world.trees is Array or world.trees.size() > width:
    return "Неверный список деревьев"

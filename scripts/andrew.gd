@@ -92,7 +92,7 @@ func _landing_target(target: CharacterBody2D) -> Variant:
    for column in range(x - 1, x + 2):
     if encounter.main.world.block_at(Vector2i(column, floor_y)) == -1: clear = false
     for y in range(floor_y - 4, floor_y):
-     if encounter.main.world.block_at(Vector2i(column,y)) != -1: clear = false
+     if encounter.main.world.block_at(Vector2i(column,y)) != -1 or encounter.main.world.door_at(Vector2i(column,y)) != null: clear = false
    if clear: return Vector2(x * 16 + 8, floor_y * 16)
  return null
 

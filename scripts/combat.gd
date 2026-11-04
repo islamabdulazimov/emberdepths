@@ -119,8 +119,9 @@ func enemy_at(cell: Vector2i) -> int:
    return id
  return -1
 
-func line_clear(from: Vector2, to: Vector2) -> bool:
+func line_clear(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
  var query := PhysicsRayQueryParameters2D.create(from, to, 1)
+ query.exclude = exclude
  return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 func player_data(body: CharacterBody2D) -> Dictionary:
@@ -395,6 +396,7 @@ func _try_spawn(alive: Array) -> bool:
   var at := Vector2(column * 16 + 8, top * 16 - 2)
   if main.world.block_at(Vector2i(column, top)) == -1 or main.world.block_at(Vector2i(column, top - 1)) != -1 or main.world.block_at(Vector2i(column, top - 2)) != -1:
    continue
+  if main.world.door_at(Vector2i(column,top-1)) != null: continue
   var safe := true
   for player in alive:
    if player.position.distance_to(at) < 160:

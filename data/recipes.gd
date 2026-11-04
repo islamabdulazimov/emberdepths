@@ -9,4 +9,6 @@ const DEFINITIONS := {
  "stone_axe": {"output": "stone_axe", "count": 1, "ingredients": {"stone": 4, "dirt": 2}},
  "wood_block": {"output": "wood_block", "count": 4, "ingredients": {"wood": 2}},
  "spark_balm": {"output": "spark_balm", "count": 2, "ingredients": {"wood": 2, "emberstone": 1}},
+ "wood_wall": {"output": "wood_wall", "count": 4, "ingredients": {"wood": 1}},
+ "wood_door": {"output": "wood_door", "count": 1, "ingredients": {"wood": 3}},
 }

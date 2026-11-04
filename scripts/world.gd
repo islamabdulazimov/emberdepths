@@ -1,5 +1,9 @@
 extends Node2D
 const Blocks = preload("res://data/blocks.gd")
+const Structures = preload("res://data/structures.gd")
+const Door = preload("res://scripts/door.gd")
+var doors: Dictionary = {} # Bottom cell -> StaticBody2D.
+var door_cells: Dictionary = {} # All occupied cells -> bottom cell.
 @export var world_seed: int = 72419
 @export var world_width: int = 192
 @export var world_depth: int = 72
@@ -17,6 +21,7 @@ func _ready() -> void:
  generate()
 
 func generate() -> void:
+ for anchor in doors.keys(): apply_door(anchor,-1)
  heights.clear()
  changes.clear()
  wall_changes.clear()
@@ -119,6 +124,7 @@ func interaction_status(actor: CharacterBody2D, cell: Vector2i, placing: bool, b
   return "Можно добыть" if block_at(cell) != -1 else "Пустая клетка"
  if block_at(cell) != -1:
   return "Клетка занята"
+ if door_at(cell) != null: return "Здесь дверной проём"
  var area := Rect2(cell_center(cell) - Vector2(8, 8), Vector2(16, 16))
  for body in bodies:
   var collider: CollisionShape2D = body.get_node("Collision")
@@ -181,7 +187,12 @@ func in_reach(actor: CharacterBody2D, cell: Vector2i) -> bool:
  return cell.x >= 0 and cell.x < world_width and cell.y >= 0 and cell.y < world_depth and actor.global_position.distance_to(cell_center(cell)) <= REACH
 
 func wall_at(cell: Vector2i) -> int:
- return -1 if walls.get_cell_source_id(cell) == -1 else walls.get_cell_atlas_coords(cell).x
+ var source := walls.get_cell_source_id(cell)
+ if source == -1: return -1
+ for id in Blocks.WALLS:
+  var definition: Dictionary = Blocks.WALLS[id]
+  if source == definition.source and walls.get_cell_atlas_coords(cell) == definition.atlas: return id
+ return -1
 
 func has_support(cell: Vector2i) -> bool:
  if wall_at(cell) != -1:
@@ -199,6 +210,7 @@ func decoration_status(actor: CharacterBody2D, cell: Vector2i, kind: String, pla
    return "Можно снять факел" if torches.has(cell) else "Здесь нет факела"
   if torches.has(cell):
    return "Факел уже установлен"
+  if door_at(cell) != null: return "Здесь дверной проём"
   if block_at(cell) != -1:
    return "Клетка занята"
   return "Можно поставить факел" if has_support(cell) else "Нет опоры"
@@ -221,7 +233,8 @@ func apply_decoration(kind: String, cell: Vector2i, value: int) -> void:
   if value == -1:
    walls.erase_cell(cell)
   else:
-   walls.set_cell(cell, 0, Vector2i(value, 0))
+   var definition: Dictionary = Blocks.WALLS[value]
+   walls.set_cell(cell,int(definition.source),definition.atlas)
   wall_changes[cell] = value
  elif kind == "torch":
   if value == -1 and torches.has(cell):
@@ -245,11 +258,15 @@ func safe_spawn_position(preferred_column: int = -1) -> Vector2:
     continue
    for floor_y in range(2, world_depth):
     if block_at(Vector2i(column, floor_y)) != -1 and block_at(Vector2i(column, floor_y - 1)) == -1 and block_at(Vector2i(column, floor_y - 2)) == -1:
-     return Vector2(column * 16 + 8, floor_y * 16 - 10)
+     var at := Vector2(column * 16 + 8, floor_y * 16 - 10)
+     if character_fits(at): return at
  return Vector2(world_width * 8, -32)
 
 
 func character_fits(at: Vector2) -> bool:
+ var player_area := Rect2(at + Vector2(-5,-18),Vector2(10,28))
+ for anchor in doors:
+  if not doors[anchor].opened and door_area(anchor).intersects(player_area): return false
  var top_left := cell_at(at + Vector2(-5, -18))
  var bottom_right := cell_at(at + Vector2(4.99, 9.99))
  for x in range(top_left.x, bottom_right.x + 1):
@@ -257,3 +274,56 @@ func character_fits(at: Vector2) -> bool:
    if block_at(Vector2i(x, y)) != -1:
     return false
  return at.x >= 5 and at.x <= world_width * 16 - 5 and at.y >= -64 and at.y <= world_depth * 16
+
+func door_at(cell: Vector2i) -> StaticBody2D:
+ return doors.get(door_cells.get(cell))
+
+func door_area(anchor: Vector2i) -> Rect2:
+ return Rect2(cell_center(anchor) - Vector2(8,8+(Structures.DOOR_HEIGHT-1)*16),Vector2(16,Structures.DOOR_HEIGHT*16))
+
+func area_occupied(area: Rect2, bodies: Array) -> bool:
+ for body in bodies:
+  if body.get("dead") == true: continue
+  for child in body.get_children():
+   if child is CollisionShape2D and not child.disabled and child.shape != null:
+    if area.intersects(child.global_transform * child.shape.get_rect()): return true
+ return false
+
+func door_placement_status(actor: CharacterBody2D, anchor: Vector2i, bodies: Array) -> String:
+ if doors.size() >= Structures.MAX_DOORS: return "Слишком много дверей"
+ if anchor.y < Structures.DOOR_HEIGHT-1 or anchor.y >= world_depth-1 or anchor.x < 0 or anchor.x >= world_width: return "За границей мира"
+ for cell in Structures.door_cells(anchor):
+  if not in_reach(actor,cell): return "Дверь вне досягаемости"
+  if block_at(cell) != -1 or door_at(cell) != null or torches.has(cell): return "Нужен свободный проём 1×3"
+ if block_at(anchor+Vector2i.DOWN) == -1: return "Нужен твёрдый пол под дверью"
+ if area_occupied(door_area(anchor),bodies): return "В проёме персонаж или противник"
+ return "Можно поставить дверь"
+
+func door_snapshot() -> Dictionary:
+ var result: Dictionary = {}
+ for anchor in doors: result[anchor] = bool(doors[anchor].opened)
+ return result
+
+# Trusted snapshot/replication boundary; gameplay validation lives in ItemService.
+func apply_door(anchor: Vector2i, value: int) -> void:
+ if value == -1:
+  if not doors.has(anchor): return
+  remove_child(doors[anchor])
+  doors[anchor].queue_free()
+  doors.erase(anchor)
+  for cell in Structures.door_cells(anchor): door_cells.erase(cell)
+  return
+ if not doors.has(anchor):
+  var door := StaticBody2D.new()
+  door.set_script(Door)
+  door.anchor = anchor
+  door.opened = value == 1
+  door.position = to_local(cell_center(anchor))
+  add_child(door)
+  doors[anchor] = door
+  for cell in Structures.door_cells(anchor): door_cells[cell] = anchor
+ else: doors[anchor].set_open(value == 1)
+
+func restore_doors(data: Dictionary) -> void:
+ for anchor in doors.keys(): apply_door(anchor,-1)
+ for anchor in data: apply_door(anchor,1 if data[anchor] else 0)

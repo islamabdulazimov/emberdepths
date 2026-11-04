@@ -28,6 +28,7 @@ func _ready() -> void:
  main.combat.player_changed.connect(_player_changed)
  main.items.terrain_changed.connect(_terrain_changed)
  main.items.decoration_changed.connect(_decoration_changed)
+ main.items.door_changed.connect(_door_changed)
  main.items.attack_started.connect(_attack_started)
  main.items.chop_started.connect(_chop_started)
  main.items.tree_felled.connect(_tree_felled)
@@ -149,7 +150,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot())
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -183,7 +184,7 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array, door_state: Dictionary) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -195,6 +196,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
  for cell in torch_cells:
   main.world.apply_decoration("torch", cell, 1)
  main.world.restore_trees(tree_state)
+ main.world.restore_doors(door_state)
  main.items.inventories.clear()
  main.items.load_drops(drop_state)
  main.reset_players()
@@ -378,6 +380,25 @@ func _terrain_changed(cell: Vector2i, block_id: int) -> void:
 func _decoration_changed(kind: String, cell: Vector2i, value: int) -> void:
  if active and connected and multiplayer.is_server():
   _broadcast("sync_decoration", [kind, cell, value])
+
+func _door_changed(anchor: Vector2i, value: int) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_door",[anchor,value])
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_door(anchor: Vector2i, value: int) -> void:
+ main.world.apply_door(anchor,value)
+
+func toggle_door_local(cell: Vector2i, slot: int) -> void:
+ if not active or (connected and multiplayer.is_server()): main.items.toggle_door(main.player,cell,slot)
+ elif connected: request_toggle_door.rpc_id(1,cell,slot)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_toggle_door(cell: Vector2i, slot: int) -> void:
+ if not multiplayer.is_server() or not connected: return
+ var id := multiplayer.get_remote_sender_id()
+ if not main.saves.peer_profiles.has(id): return
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body != null: main.items.toggle_door(body,cell,slot)
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:

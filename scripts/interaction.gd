@@ -31,6 +31,10 @@ func _unhandled_input(event: InputEvent) -> void:
    selected_slot = posmod(selected_slot - 1, 10)
   elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
    selected_slot = (selected_slot + 1) % 10
+  elif event.button_index == MOUSE_BUTTON_RIGHT and can_use_mouse() and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+   var cell: Vector2i = world.cell_at(get_global_mouse_position())
+   if get_parent().items.selected_definition(player,selected_slot).is_empty() and world.door_at(cell) != null:
+    network.toggle_door_local(cell,selected_slot)
 
 func can_use_mouse() -> bool:
  return is_instance_valid(player) and not player.dead and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
@@ -50,6 +54,10 @@ func _process(delta: float) -> void:
   status = primary
  if world.torches.has(selected_cell) or get_parent().combat.chest_at(selected_cell) != -1 or (kind == "" and get_parent().combat.enemy_at(selected_cell) != -1):
   status = primary
+ if world.door_at(selected_cell) != null and kind not in ["weapon","axe","consumable","wall"]:
+  status = primary
+  if kind == "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+   status = service.door_toggle_status(player,selected_cell,selected_slot) + " · ПКМ | ЛКМ — снять"
  outline_color = Color("a9e89b") if status.begins_with("Можно") else Color("e97b77")
  if kind == "weapon":
   outline_color = Color("e97b77") if primary == "Недостаточно выносливости" else Color("f0cc8c")
@@ -101,7 +109,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
+ label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение / дверь\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
  queue_redraw()
 
 func _draw() -> void:
@@ -109,7 +117,14 @@ func _draw() -> void:
   return
  if is_instance_valid(player) and (get_parent().items.selected_definition(player,selected_slot).get("kind","") == "consumable" or player.medicine_latch == selected_slot): return
  var corner: Vector2 = to_local(world.cell_center(selected_cell)) - Vector2(8, 8)
- draw_rect(Rect2(corner, Vector2(16, 16)), outline_color, false, 1.0)
+ var size := Vector2(16,16)
+ var definition: Dictionary = get_parent().items.selected_definition(player,selected_slot)
+ var door = world.door_at(selected_cell)
+ if definition.get("kind","") == "door" or (door != null and definition.get("kind","") not in ["wall","axe","weapon"]):
+  var area: Rect2 = world.door_area(door.anchor if door != null else selected_cell)
+  corner = to_local(area.position)
+  size = area.size
+ draw_rect(Rect2(corner, size), outline_color, false, 1.0)
  if mining_time > 0.0 and is_instance_valid(player):
   var duration: float = get_parent().items.primary_duration(player, selected_cell, selected_slot)
-  draw_rect(Rect2(corner + Vector2(0, 13), Vector2(16 * clampf(mining_time / duration, 0.0, 1.0), 3)), Color("f0dc8c"))
+  draw_rect(Rect2(corner + Vector2(0, size.y-3), Vector2(size.x * clampf(mining_time / duration, 0.0, 1.0), 3)), Color("f0dc8c"))

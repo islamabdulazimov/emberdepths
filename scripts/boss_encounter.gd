@@ -56,7 +56,7 @@ func _find_spawn(players: Array) -> Variant:
     for x in range(column - 2, column + 3):
      if absi(x - column) <= 1 and main.world.block_at(Vector2i(x, floor_y)) == -1: clear = false
      for y in range(floor_y - 5, floor_y):
-      if main.world.block_at(Vector2i(x, y)) != -1: clear = false
+      if main.world.block_at(Vector2i(x, y)) != -1 or main.world.door_at(Vector2i(x,y)) != null: clear = false
     var at := Vector2(column * 16 + 8, floor_y * 16)
     for other in players:
      if at.distance_to(other.position) < 80: clear = false

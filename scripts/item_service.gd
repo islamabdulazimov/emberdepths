@@ -1,6 +1,7 @@
 extends Node2D
 signal terrain_changed(cell: Vector2i, block_id: int)
 signal decoration_changed(kind: String, cell: Vector2i, value: int)
+signal door_changed(anchor: Vector2i, value: int)
 signal attack_started(id: int, direction: Vector2)
 signal chop_started(id: int, direction: Vector2)
 signal tree_felled(index: int, direction: int)
@@ -51,6 +52,7 @@ func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Arra
   inventory_changed.emit(id)
  terrain_changed.emit(cell, block_id)
  _check_torch_support()
+ _check_door_support()
  return true
 
 func spawn_drop(item_id: String, amount: int, at: Vector2) -> int:
@@ -173,6 +175,12 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
   if main.world.block_at(cell) != -1 or not main.combat.line_clear(body.position + Vector2(0,-5),main.world.cell_center(cell)):
    return "Ствол за преградой"
   return "Можно рубить дерево"
+ if kind != "wall" and main.world.door_at(cell) != null:
+  var door = main.world.door_at(cell)
+  var excluded: Array[RID] = [door.get_rid()]
+  if not main.world.in_reach(body,cell): return "Дверь слишком далеко"
+  if not main.combat.line_clear(body.position+Vector2(0,-5),main.world.cell_center(cell),excluded): return "Дверь за преградой"
+  return "Можно снять дверь"
  if main.combat.chest_at(cell) != -1:
   if not main.world.in_reach(body, cell):
    return "Сундук слишком далеко"
@@ -192,6 +200,8 @@ func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float
  var definition := selected_definition(body, slot)
  if definition.get("kind", "") == "axe": return float(definition.chop_time)
  if definition.get("kind", "") == "consumable": return float(definition.use_time)
+ if main.world.door_at(cell) != null and definition.get("kind","") != "wall":
+  return main.world.Structures.DOOR_REMOVE_TIME * float(definition.get("mine_factor",1.0))
  if main.combat.chest_at(cell) != -1:
   return 0.6
  if definition.is_empty() and main.combat.enemy_at(cell) != -1:
@@ -208,6 +218,14 @@ func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float
 func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
+ if kind == "door":
+  if body.dead: return "Вы погибли"
+  var status: String = main.world.door_placement_status(body,cell,solid_bodies())
+  if status != "Можно поставить дверь": return status
+  for occupied in main.world.Structures.door_cells(cell):
+   if main.combat.chest_at(occupied) != -1: return "В проёме сундук вещей"
+  if not main.combat.line_clear(body.position+Vector2(0,-5),main.world.cell_center(cell)): return "Дверь за преградой"
+  return status
  if kind in ["wall", "torch"]:
   return main.world.decoration_status(body, cell, kind, true)
  if body.dead:
@@ -229,6 +247,8 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   return swing(body, slot, main.world.cell_center(cell) - body.position)
  if kind == "consumable": return finish_medicine(body,slot)
  if kind == "axe": return chop_tree(body, cell, slot)
+ if kind != "wall" and main.world.door_at(cell) != null:
+  return remove_door(body,cell,slot)
  if main.combat.chest_at(cell) != -1:
   return main.combat.break_chest(body, cell)
  if kind == "" and main.combat.enemy_at(cell) != -1:
@@ -241,7 +261,7 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
    return false
   var item_id := "torch"
   if kind == "wall":
-   item_id = "dirt_wall" if main.world.wall_at(cell) == 1 else "stone_wall"
+   item_id = main.world.Blocks.WALLS[main.world.wall_at(cell)].item
   main.world.apply_decoration(kind, cell, -1)
   decoration_changed.emit(kind, cell, -1)
   spawn_drop(item_id, 1, main.world.cell_center(cell))
@@ -318,6 +338,13 @@ func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
+ if kind == "door":
+  if not main.combat.authoritative() or placement_status(body,cell,slot) != "Можно поставить дверь": return false
+  main.world.apply_door(cell,0)
+  inventory_for(int(str(body.name))).take_one(slot)
+  inventory_changed.emit(int(str(body.name)))
+  door_changed.emit(cell,0)
+  return true
  if kind == "solid":
   return try_edit(body, cell, definition.block, main.get_node("Players").get_children(), slot)
  if kind not in ["wall", "torch"]:
@@ -332,6 +359,55 @@ func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  inventory_for(id).take_one(slot)
  inventory_changed.emit(id)
  return true
+
+func solid_bodies() -> Array:
+ var result: Array = main.get_node("Players").get_children()
+ for enemy in main.combat.entities.values():
+  if enemy.kind != "spirit": result.append(enemy)
+ if is_instance_valid(main.encounter.actor): result.append(main.encounter.actor)
+ return result
+
+func door_toggle_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
+ if body.dead: return "Вы погибли"
+ if slot < 0 or slot >= Inventory.HOTBAR_COUNT or not selected_definition(body,slot).is_empty(): return "Выбери пустой слот для двери"
+ var door = main.world.door_at(cell)
+ if door == null: return "Здесь нет двери"
+ var excluded: Array[RID] = [door.get_rid()]
+ if not main.world.in_reach(body,cell): return "Дверь слишком далеко"
+ if not main.combat.line_clear(body.position+Vector2(0,-5),main.world.cell_center(cell),excluded): return "Дверь за преградой"
+ if door.opened:
+  if main.world.area_occupied(main.world.door_area(door.anchor),solid_bodies()): return "В проёме персонаж или противник"
+  for occupied in main.world.Structures.door_cells(door.anchor):
+   if main.combat.chest_at(occupied) != -1: return "В проёме сундук вещей"
+ return "Можно закрыть дверь" if door.opened else "Можно открыть дверь"
+
+func toggle_door(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if not main.combat.authoritative() or not door_toggle_status(body,cell,slot).begins_with("Можно"): return false
+ var door = main.world.door_at(cell)
+ var now := Time.get_ticks_msec()
+ if now < door.ready_at: return false
+ door.ready_at = now + roundi(main.world.Structures.DOOR_TOGGLE_DELAY*1000)
+ cancel_medicine(body)
+ var value := 0 if door.opened else 1
+ main.world.apply_door(door.anchor,value)
+ door_changed.emit(door.anchor,value)
+ return true
+
+func remove_door(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно снять дверь": return false
+ var anchor: Vector2i = main.world.door_at(cell).anchor
+ main.world.apply_door(anchor,-1)
+ door_changed.emit(anchor,-1)
+ spawn_drop("wood_door",1,main.world.cell_center(anchor))
+ return true
+
+func _check_door_support() -> void:
+ if not main.combat.authoritative(): return
+ for anchor in main.world.doors.keys():
+  if main.world.block_at(anchor+Vector2i.DOWN) == -1:
+   main.world.apply_door(anchor,-1)
+   door_changed.emit(anchor,-1)
+   spawn_drop("wood_door",1,main.world.cell_center(anchor))
 
 func _check_torch_support() -> void:
  for cell in main.world.torches.keys():

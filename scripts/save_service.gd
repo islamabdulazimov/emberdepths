@@ -248,7 +248,7 @@ func capture() -> Dictionary:
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "generator": 1, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot()}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "generator": 1, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot()}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -292,6 +292,7 @@ func restore(state: Dictionary) -> String:
   main.world.apply_decoration("torch", cell, 1)
  if state.world.has("trees"):
   main.world.restore_trees(state.world.trees)
+ main.world.restore_doors(state.world.get("doors",{}))
  main.world.solid.update_internals()
  main.items.inventories.clear()
  main.items.load_drops(state.drops)

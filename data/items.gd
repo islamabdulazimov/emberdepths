@@ -15,6 +15,8 @@ const DEFINITIONS := {
  "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
  "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},
  "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},
+ "wood_wall": {"name": "Деревянная стена", "kind": "wall", "wall": 3, "icon": "res://assets/icons/wood_wall.svg"},
+ "wood_door": {"name": "Деревянная дверь", "kind": "door", "icon": "res://assets/icons/door.svg"},
 }
 static var icon_cache: Dictionary = {}
 
