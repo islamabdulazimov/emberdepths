@@ -467,7 +467,7 @@ func _attack_started(id: int, direction: Vector2) -> void:
 func _work_started(id: int, direction: Vector2, kind: String) -> void:
  if active and connected and multiplayer.is_server(): _broadcast("sync_work",[id,direction,kind])
 
-@rpc("authority", "call_remote", "unreliable_ordered", 3)
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_work(id: int, direction: Vector2, kind: String) -> void:
  if kind not in ["pick","build","punch"]: return
  var body = main.get_node("Players").get_node_or_null(str(id))
@@ -549,7 +549,7 @@ func _send(peer_id: int, method: String, arguments: Array) -> void:
  if peer_id == 1 or not main.saves.peer_profiles.has(peer_id) or not multiplayer.get_peers().has(peer_id):
   return
  var peer := (multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(peer_id)
- if peer != null and peer.get_state() == ENetPacketPeer.STATE_CONNECTED:
+ if peer != null and peer.get_state() == ENetPacketPeer.STATE_CONNECTED and peer.get_channels() > 0:
   callv("rpc_id", [peer_id, method] + arguments)
 
 func _broadcast(method: String, arguments: Array) -> void:

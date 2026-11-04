@@ -7,7 +7,7 @@ static func draw_ashling(canvas: Node2D, clock: float, velocity: Vector2, flash:
  var airborne := absf(velocity.y) > 20
  var squash := Vector2(0.94,1.06) if airborne else Vector2(1+absf(stride)*moving*0.06,1-absf(stride)*moving*0.06)
  var facing := -1 if velocity.x < -1 else 1
- canvas.draw_rect(Rect2(-7,0,14,2),Color(0.07,0.10,0.13,0.3))
+ if not airborne: canvas.draw_rect(Rect2(-7,0,14,2),Color(0.07,0.10,0.13,0.3))
  canvas.draw_set_transform(Vector2(0,-absf(stride)*moving),0,squash*Vector2(facing,1))
  var color := Art.SLATE.lerp(Art.IVORY,minf(0.8,flash*5))
  canvas.draw_colored_polygon(PackedVector2Array([Vector2(-8,0),Vector2(-9,-5),Vector2(-6,-12),Vector2(-3,-15),Vector2(3,-14),Vector2(7,-10),Vector2(9,-4),Vector2(7,0)]),Art.INK)

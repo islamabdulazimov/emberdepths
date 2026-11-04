@@ -274,6 +274,8 @@ func _draw() -> void:
  if phase == "stunned":
   for i in range(3):
    draw_rect(Rect2(Vector2(sin(phase_elapsed * 5 + i * TAU / 3) * 16, -76 + cos(phase_elapsed * 5 + i * TAU / 3) * 3), Vector2(3,3)), Color("f6d68d"))
+ if absf(velocity.y) < 5 and phase not in ["backflip","super_flight"]:
+  draw_rect(Rect2(-18,-1,36,2),Color(0.06,0.10,0.13,0.24))
  # Transform only the artwork. World-space warning geometry above stays exact.
  var pose: Dictionary = visual_pose if not visual_pose.is_empty() else Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
  var turn_width: float = 0.35 + 0.65 * absf(float(pose.turn))

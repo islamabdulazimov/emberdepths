@@ -45,7 +45,7 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
    p.back_hand = Vector2(-23,-20).lerp(Vector2(-34,-42), ease)
   "spin_active":
    # Turn around the vertical axis, rather than cartwheeling the entire body.
-   p.turn = cos(t * TAU * 2)
+   p.turn = cos(t * TAU)
    p.front_elbow = Vector2(35,-41)
    p.front_hand = Vector2(53,-40)
    p.back_elbow = Vector2(-35,-41)

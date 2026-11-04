@@ -37,6 +37,7 @@ func run() -> void:
  var saw_four := false
  var saw_mined := false
  var saw_built := false
+ var work_fixture_sent := false
  var saw_work := false
  var saw_move := false
  var mined_once := false
@@ -69,6 +70,12 @@ func run() -> void:
    saw_shared_sky = true
   if main.get_node("Players").get_child_count() == 4:
    saw_four = true
+   if role == "host" and not work_fixture_sent:
+    # A deterministic cosmetic event after every peer is admitted. Real mining
+    # may finish before an observer joins and must not be replayed as old work.
+    work_fixture_sent = true
+    main.player.play_work(Vector2.RIGHT,"build")
+    main.items.work_started.emit(1,Vector2.RIGHT,"build")
   if saw_four and main.get_node("Players").get_child_count() == 3:
    saw_disconnect = true
   if role == "late" and not late_snapshot:
