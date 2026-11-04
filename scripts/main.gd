@@ -3,6 +3,8 @@ const PlayerScene = preload("res://scenes/player.tscn")
 var player: CharacterBody2D
 var interaction: Node2D
 var network: Node
+var items: Node2D
+var inventory_ui: CanvasLayer
 @onready var world = $World
 
 func _ready() -> void:
@@ -10,6 +12,10 @@ func _ready() -> void:
  _bind_key("move_left", KEY_A)
  _bind_key("move_right", KEY_D)
  _bind_key("jump", KEY_SPACE)
+ items = Node2D.new()
+ items.name = "Items"
+ items.set_script(preload("res://scripts/item_service.gd"))
+ add_child(items)
  network = Node.new()
  network.name = "Network"
  network.set_script(preload("res://scripts/network.gd"))
@@ -25,6 +31,9 @@ func _ready() -> void:
  interaction.network = network
  interaction.z_index = 5
  add_child(interaction)
+ inventory_ui = CanvasLayer.new()
+ inventory_ui.set_script(preload("res://scripts/inventory_ui.gd"))
+ add_child(inventory_ui)
  _create_network_ui()
  for arg in OS.get_cmdline_user_args():
   if arg == "--host":
@@ -38,6 +47,7 @@ func add_player(id: int, position_value: Vector2) -> void:
  var body = PlayerScene.instantiate()
  body.name = str(id)
  $Players.add_child(body)
+ items.inventory_for(id)
  body.position = position_value
  body.get_node("Camera2D").enabled = false
  body.set_physics_process(not network.active or multiplayer.is_server())
@@ -111,7 +121,7 @@ func _physics_process(_delta: float) -> void:
   var mode := 0
   if interaction.can_use_mouse():
    mode = 1 if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) else (2 if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) else 0)
-  network.submit_local(axis, jump, world.cell_at(get_global_mouse_position()), mode, interaction.selected_block, _delta)
+  network.submit_local(axis, jump, world.cell_at(get_global_mouse_position()), mode, interaction.selected_slot, _delta)
  else:
   player.submit_command(axis, jump)
  if not network.active or multiplayer.is_server():

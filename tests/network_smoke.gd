@@ -18,6 +18,10 @@ func run() -> void:
  # Avoid real mouse driving or mutating terrain in this scripted scenario.
  main.interaction.set_process(false)
  if role == "host":
+  # Test fixture only: grant remote players two stones, through host inventory.
+  main.multiplayer.peer_connected.connect(func(id):
+   main.items.inventory_for(id).add("stone", 2)
+   main.items.inventory_changed.emit(id))
   check_result(main.network.host_game() == OK, "Host opens ENet server")
  else:
   main.network.join_game("127.0.0.1")
@@ -30,6 +34,13 @@ func run() -> void:
  var mined_once := false
  var late_snapshot := false
  var initial_x := 0.0
+ var pickup_fixture := false
+ var consumed_once := false
+ var saw_pickup := false
+ var transfer_sent := false
+ var saw_transfer := false
+ var saw_private_inventory := false
+ var saw_late_drops := false
  var cell := Vector2i(96, 23)
  while Time.get_ticks_msec() - start < (4500 if role == "client2" else (5000 if role == "late" else 8500)):
   await process_frame
@@ -44,7 +55,28 @@ func run() -> void:
   if role == "late" and not late_snapshot:
    late_snapshot = true
    check_result(main.world.block_at(cell) == 2 and main.world.changes.get(cell) == 2, "Late join receives existing edits")
+  if role == "host" and not pickup_fixture and Time.get_ticks_msec() - start > 1800:
+   for id in main.network.commands:
+    if id != 1:
+     var body = main.get_node("Players").get_node(str(id))
+     if body.position.x > main.world.spawn_position().x + 30:
+      main.items.spawn_drop("dirt", 4, body.position + Vector2(0, -8))
+      pickup_fixture = true
+  if role == "client2" and main.items.local_inventory().slots[0].count == 2:
+   saw_private_inventory = true
+  if role == "late" and not main.items.drops.is_empty():
+   saw_late_drops = true
   if role == "client1":
+   var bag = main.items.local_inventory()
+   if saw_built and bag.slots[0].item == "stone" and bag.slots[0].count == 1:
+    consumed_once = true
+   if bag.slots[1].item == "dirt" and bag.slots[1].count == 4:
+    saw_pickup = true
+   if saw_pickup and consumed_once and not transfer_sent:
+    main.network.transfer_local(0, 1)
+    transfer_sent = true
+   if transfer_sent and bag.slots[1].item == "stone" and bag.slots[1].count == 1 and bag.slots[0].item == "dirt":
+    saw_transfer = true
    if initial_x == 0.0:
     initial_x = main.player.position.x
    if main.player.position.x > initial_x + 8.0:
@@ -56,7 +88,7 @@ func run() -> void:
     mode = 1
    elif mined_once and not saw_built:
     mode = 2
-   main.network.submit_local(axis, false, cell, mode, 2, 1.0 / 60.0)
+   main.network.submit_local(axis, false, cell, mode, 0, 1.0 / 60.0)
   if main.world.changes.get(cell, 99) == -1:
    saw_mined = true
    mined_once = true
@@ -70,14 +102,23 @@ func run() -> void:
   check_result(saw_disconnect, "Disconnected player removed on host")
  elif role == "late":
   check_result(late_snapshot, "Late client joins")
+  check_result(saw_late_drops, "Late client receives existing drops")
   check_result(saw_disconnect, "Disconnect replicated to remaining client")
  else:
   check_result(saw_four, "Client sees four players")
   check_result(saw_mined and saw_built, "Client receives ordered terrain edits")
   if role == "client1":
    check_result(saw_move, "Remote input moves server-controlled player")
+   check_result(consumed_once, "Server consumes one item and syncs owner inventory")
+   check_result(saw_pickup, "Server pickup replicates into owner inventory")
+   check_result(saw_transfer, "Reliable inventory transfer swaps owner slots")
  if role == "client2":
+  check_result(saw_private_inventory, "Other player's inventory stays independent")
+  var before_leave: Array = main.items.local_inventory().to_data()
+  var world_before: Dictionary = main.items.snapshot()
   main.network.stop()
   await create_timer(0.4).timeout
+  check_result(main.items.local_inventory().to_data() == before_leave, "Leaving session preserves local inventory")
+  check_result(main.items.drops.size() == world_before.size(), "Graceful exit does not duplicate carried items as drops")
  print("NETWORK ", role, " failures: ", failures)
  quit(1 if failures else 0)

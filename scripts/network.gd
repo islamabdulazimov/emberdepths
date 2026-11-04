@@ -18,6 +18,8 @@ var main: Node2D
 
 func _ready() -> void:
  main = get_parent()
+ main.items.inventory_changed.connect(_inventory_changed)
+ main.items.drop_changed.connect(_drop_changed)
  multiplayer.peer_connected.connect(_peer_joined)
  multiplayer.peer_disconnected.connect(_peer_left)
  multiplayer.connected_to_server.connect(func(): status = "Получение мира…")
@@ -61,6 +63,8 @@ func stop(message: String = "Одиночная игра") -> void:
  if stopping:
   return
  stopping = true
+ var carried_inventory: RefCounted = main.items.local_inventory()
+ var was_host := active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()
  var can_notify := active and connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
  active = false
  connected = false
@@ -75,9 +79,18 @@ func stop(message: String = "Одиночная игра") -> void:
  cooldowns.clear()
  last_input.clear()
  targets.clear()
+ var kept_inventory: Array = carried_inventory.to_data()
+ # On return to solo, preserve local inventory; release other inventories once.
+ if was_host:
+  for id in main.items.inventories.keys():
+   if id != 1:
+    var body = main.get_node("Players").get_node_or_null(str(id))
+    main.items.retire_player(id, body.position if body != null else main.world.spawn_position())
+ main.items.inventories.clear()
  main.reset_players()
  main.add_player(1, main.world.spawn_position())
  main.select_local_player(1)
+ main.items.inventory_for(1).load_data(kept_inventory)
  status = message
  stopping = false
 
@@ -92,7 +105,7 @@ func _peer_joined(id: int) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster)
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -104,7 +117,7 @@ func request_leave() -> void:
   return
  var id := multiplayer.get_remote_sender_id()
  if id > 1:
-  _peer_left(id)
+  _peer_left(id, true)
   multiplayer.multiplayer_peer.disconnect_peer(id)
 
 @rpc("authority", "call_remote", "reliable", 0)
@@ -112,8 +125,16 @@ func despawn_remote(id: int) -> void:
  main.remove_player(id)
  targets.erase(id)
 
-func _peer_left(id: int) -> void:
+func _peer_left(id: int, taking_inventory: bool = false) -> void:
  if active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server():
+  var body = main.get_node("Players").get_node_or_null(str(id))
+  if body != null:
+   if taking_inventory:
+    # Graceful exit carries this inventory into a separate solo world copy.
+    # Do not also drop it into that same departing client's world replica.
+    main.items.inventories.erase(id)
+   else:
+    main.items.retire_player(id, body.position)
   despawn_remote.rpc(id)
  main.remove_player(id)
  commands.erase(id)
@@ -123,17 +144,20 @@ func _peer_left(id: int) -> void:
  targets.erase(id)
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
  main.world.generate()
  for edit in edits:
   main.world.apply_edit(edit[0], edit[1])
+ main.items.inventories.clear()
+ main.items.load_drops(drop_state)
  main.reset_players()
  for id in roster:
   main.add_player(id, roster[id])
  main.select_local_player(multiplayer.get_unique_id())
+ main.items.local_inventory().load_data(inventory_data)
  connected = true
  status = "Подключён · игроков: %d/4" % roster.size()
 
@@ -142,30 +166,30 @@ func spawn_remote(id: int, position_value: Vector2) -> void:
  main.add_player(id, position_value)
  status = "Подключён · игроков: %d/4" % main.get_node("Players").get_child_count()
 
-func submit_local(axis: float, jump: bool, cell: Vector2i, mode: int, block_id: int, delta: float) -> void:
+func submit_local(axis: float, jump: bool, cell: Vector2i, mode: int, slot: int, delta: float) -> void:
  if not active or not connected:
   return
  if multiplayer.is_server():
-  _store_command(1, axis, jump, cell, mode, block_id)
+  _store_command(1, axis, jump, cell, mode, slot)
  else:
   send_clock += delta
   # Send a jump immediately so a brief key press is not lost between packets.
   if send_clock >= 1.0 / 30.0 or jump:
    send_clock = 0.0
-   receive_command.rpc_id(1, axis, jump, cell, mode, block_id)
+   receive_command.rpc_id(1, axis, jump, cell, mode, slot)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
-func receive_command(axis: float, jump: bool, cell: Vector2i, mode: int, block_id: int) -> void:
+func receive_command(axis: float, jump: bool, cell: Vector2i, mode: int, slot: int) -> void:
  if multiplayer.is_server():
-  _store_command(multiplayer.get_remote_sender_id(), axis, jump, cell, mode, block_id)
+  _store_command(multiplayer.get_remote_sender_id(), axis, jump, cell, mode, slot)
 
-func _store_command(id: int, axis: float, jump: bool, cell: Vector2i, mode: int, block_id: int) -> void:
+func _store_command(id: int, axis: float, jump: bool, cell: Vector2i, mode: int, slot: int) -> void:
  if not main.get_node("Players").has_node(str(id)) or not is_finite(axis):
   return
- if mode < 0 or mode > 2 or not main.world.Blocks.DEFINITIONS.has(block_id):
+ if mode < 0 or mode > 2 or (slot < 0 or slot >= 10):
   return
  var pending_jump := bool(commands.get(id, {}).get("jump", false))
- commands[id] = {"axis": clampf(axis, -1.0, 1.0), "jump": jump or pending_jump, "cell": cell, "mode": mode, "block": block_id}
+ commands[id] = {"axis": clampf(axis, -1.0, 1.0), "jump": jump or pending_jump, "cell": cell, "mode": mode, "slot": slot}
  last_input[id] = Time.get_ticks_msec()
 
 func _physics_process(delta: float) -> void:
@@ -205,7 +229,8 @@ func _physics_process(delta: float) -> void:
   else:
    mining.erase(id)
   if command.mode == 2 and cooldowns[id] <= 0.0:
-   if _edit(body, cell, command.block, bodies):
+   var block_id: int = main.items.inventory_for(id).block_in_slot(command.slot)
+   if block_id != -1 and _edit(body, cell, block_id, bodies, command.slot):
     cooldowns[id] = 0.18
  snapshot_clock += delta
  if snapshot_clock >= 0.05:
@@ -213,10 +238,13 @@ func _physics_process(delta: float) -> void:
   var state: Dictionary = {}
   for body in main.get_node("Players").get_children():
    state[int(str(body.name))] = [body.position, body.velocity, body.facing]
-  sync_positions.rpc(state)
+  var drop_positions: Dictionary = {}
+  for id in main.items.drops:
+   drop_positions[id] = main.items.drops[id].position
+  sync_positions.rpc(state, drop_positions)
 
-func _edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Array) -> bool:
- if not main.world.request_edit(body, cell, block_id, bodies):
+func _edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Array, slot: int = -1) -> bool:
+ if not main.items.try_edit(body, cell, block_id, bodies, slot):
   return false
  terrain_edit.rpc(cell, block_id)
  return true
@@ -226,10 +254,13 @@ func terrain_edit(cell: Vector2i, block_id: int) -> void:
  main.world.apply_edit(cell, block_id)
 
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
-func sync_positions(state: Dictionary) -> void:
+func sync_positions(state: Dictionary, drop_positions: Dictionary) -> void:
  if not connected:
   return
  targets = state
+ for id in drop_positions:
+  if main.items.drops.has(id):
+   main.items.drops[id].position = drop_positions[id]
 
 func _process(delta: float) -> void:
  if not active or not connected or multiplayer.is_server():
@@ -243,3 +274,36 @@ func _process(delta: float) -> void:
   body.facing = targets[id][2]
   body.elapsed += delta
   body.queue_redraw()
+
+
+func _inventory_changed(id: int) -> void:
+ if active and connected and multiplayer.is_server() and id != 1:
+  sync_inventory.rpc_id(id, main.items.inventory_for(id).to_data())
+
+func _drop_changed(id: int, data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_drop.rpc(id, data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_inventory(data: Array) -> void:
+ main.items.local_inventory().load_data(data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_drop(id: int, data: Dictionary) -> void:
+ main.items.set_drop(id, data)
+
+func transfer_local(source: int, destination: int) -> void:
+ if not connected:
+  return
+ if multiplayer.is_server():
+  main.items.transfer(1, source, destination)
+ else:
+  request_transfer.rpc_id(1, source, destination)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_transfer(source: int, destination: int) -> void:
+ if not multiplayer.is_server():
+  return
+ var id := multiplayer.get_remote_sender_id()
+ if main.get_node("Players").has_node(str(id)):
+  main.items.transfer(id, source, destination)
