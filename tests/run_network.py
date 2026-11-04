@@ -7,7 +7,9 @@ crafting_mode="--crafting" in sys.argv
 logging_mode="--logging" in sys.argv
 healing_mode="--healing" in sys.argv
 shelter_mode="--shelter" in sys.argv
+storage_mode="--storage" in sys.argv
 script="tests/network_shelter_smoke.gd" if shelter_mode else ("tests/network_healing_smoke.gd" if healing_mode else ("tests/network_logging_smoke.gd" if logging_mode else ("tests/network_combat_smoke.gd" if combat_mode else ("tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd"))))
+if storage_mode: script="tests/network_storage_smoke.gd"
 failed=False
 log_dir=Path(tempfile.mkdtemp(prefix="emberdepths-network-"))
 env=os.environ.copy()
@@ -20,7 +22,15 @@ def launch(role):
  processes.append((role,proc,log))
 try:
  launch('host');time.sleep(.5)
- if shelter_mode:
+ if storage_mode:
+  launch("builder")
+  deadline=time.monotonic()+8
+  while "STORAGE_READY" not in (log_dir/"host.log").read_text():
+   if time.monotonic()>deadline:
+    raise RuntimeError("Host did not reach storage fixture; logs: "+str(log_dir))
+   time.sleep(.05)
+  launch("late")
+ elif shelter_mode:
   launch('builder')
   deadline=time.monotonic()+8
   while 'DOOR_OPEN' not in (log_dir/'host.log').read_text():

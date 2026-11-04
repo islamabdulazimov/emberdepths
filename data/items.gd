@@ -17,6 +17,7 @@ const DEFINITIONS := {
  "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},
  "wood_wall": {"name": "Деревянная стена", "kind": "wall", "wall": 3, "icon": "res://assets/icons/wood_wall.svg"},
  "wood_door": {"name": "Деревянная дверь", "kind": "door", "icon": "res://assets/icons/door.svg"},
+ "wood_chest": {"name": "Деревянный сундук", "kind": "storage", "icon": "res://assets/icons/chest.svg"},
 }
 static var icon_cache: Dictionary = {}
 

@@ -41,6 +41,11 @@ func run() -> void:
   main.world.apply_decoration("wall",Vector2i(100,20),3)
   main.world.apply_door(Vector2i(100,21),0)
   main.world.apply_door(Vector2i(102,21),1)
+  main.items.local_inventory().add("wood_chest",1)
+  main.storage.apply_object(Vector2i(90,21),{"empty":true,"opened":false})
+  main.storage.at_cell(Vector2i(90,21)).inventory.add("wood",7)
+  main.storage.at_cell(Vector2i(90,21)).inventory.add("spark_balm",2)
+  main.storage.refresh(Vector2i(90,21))
   main.player.health = 81
   main.player.unclothed = true
   main.interaction.selected_slot = 1
@@ -66,6 +71,8 @@ func run() -> void:
   check_result(main.items.local_inventory().count_item("stone_axe") == 1 and main.items.local_inventory().count_item("wood") == 6 and main.items.local_inventory().count_item("wood_block") == 3 and main.world.block_at(Vector2i(99,21)) == 4 and main.world.solid.get_cell_source_id(Vector2i(99,21)) == 2, "Real restart preserves forestry items and distinct wooden tiles")
   check_result(main.items.local_inventory().count_item("spark_balm") == 3 and main.player.medicine_cooldown == 4.5 and main.player.medicine_progress == 0,"Real restart preserves medicine portions and remaining cooldown")
   check_result(main.world.wall_at(Vector2i(100,20)) == 3 and not main.world.door_at(Vector2i(100,21)).opened and main.world.door_at(Vector2i(102,21)).opened and main.items.local_inventory().count_item("wood_wall") == 3 and main.items.local_inventory().count_item("wood_door") == 1,"Real restart preserves wood walls doors and both open states")
+  var storage = main.storage.at_cell(Vector2i(90,21))
+  check_result(storage != null and storage.inventory.count_item("wood") == 7 and storage.inventory.count_item("spark_balm") == 2 and not storage.opened and main.items.local_inventory().count_item("wood_chest") == 1,"Real restart preserves independent storage contents with closed lid")
   check_result(main.player.health == 81 and main.player.unclothed and main.player.position == Vector2(1544, 328), "Real restart restores player health appearance and position")
   check_result(main.combat.world_time == 190 and main.combat.is_night(), "Real restart resumes night without resetting day")
   var tree: Dictionary = main.world.trees[0]

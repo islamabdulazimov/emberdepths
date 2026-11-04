@@ -11,4 +11,5 @@ const DEFINITIONS := {
  "spark_balm": {"output": "spark_balm", "count": 2, "ingredients": {"wood": 2, "emberstone": 1}},
  "wood_wall": {"output": "wood_wall", "count": 4, "ingredients": {"wood": 1}},
  "wood_door": {"output": "wood_door", "count": 1, "ingredients": {"wood": 3}},
+ "wood_chest": {"output": "wood_chest", "count": 1, "ingredients": {"wood": 6}},
 }

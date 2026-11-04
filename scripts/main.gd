@@ -7,6 +7,7 @@ var network: Node
 var items: Node2D
 var combat: Node2D
 var encounter: Node2D
+var storage: Node2D
 var boss_ui: Control
 var saves: Node
 var close_dialog: ConfirmationDialog
@@ -43,6 +44,10 @@ func _ready() -> void:
  encounter.name = "BossEncounter"
  encounter.set_script(preload("res://scripts/boss_encounter.gd"))
  add_child(encounter)
+ storage = Node2D.new()
+ storage.name = "Storage"
+ storage.set_script(preload("res://scripts/storage_service.gd"))
+ add_child(storage)
  saves = Node.new()
  saves.name = "Saves"
  saves.set_script(preload("res://scripts/save_service.gd"))

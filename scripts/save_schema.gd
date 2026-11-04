@@ -83,17 +83,26 @@ static func validate(value: Variant) -> String:
   if not cell(position, width, depth) or torch_cells.has(position):
    return "Неверный факел в журнале"
   torch_cells[position] = true
+ var door_occupied: Dictionary = {}
  if world.has("doors"):
   if not world.doors is Dictionary or world.doors.size() > Structures.MAX_DOORS:
    return "Неверный список дверей"
-  var occupied: Dictionary = {}
   for anchor in world.doors:
    if not cell(anchor,width,depth) or anchor.y < Structures.DOOR_HEIGHT-1 or anchor.y >= depth-1 or not world.doors[anchor] is bool:
     return "Неверная дверь"
    if world.blocks.get(anchor+Vector2i.DOWN,0) == -1: return "Дверь без опоры"
    for part in Structures.door_cells(anchor):
-    if occupied.has(part) or torch_cells.has(part) or world.blocks.get(part,-1) != -1: return "Дверь пересекает постройку"
-    occupied[part] = true
+    if door_occupied.has(part) or torch_cells.has(part) or world.blocks.get(part,-1) != -1: return "Дверь пересекает постройку"
+    door_occupied[part] = true
+ if world.has("storage"):
+  if not world.storage is Dictionary or world.storage.size() > Structures.MAX_CHESTS: return "Неверный список сундуков"
+  var storage_cells: Dictionary = {}
+  for anchor in world.storage:
+   if not cell(anchor,width,depth) or anchor.x+Structures.CHEST_WIDTH > width or anchor.y >= depth-1 or not inventory(world.storage[anchor]): return "Неверный сундук хранения"
+   for part in Structures.chest_cells(anchor):
+    if storage_cells.has(part) or door_occupied.has(part) or torch_cells.has(part) or world.blocks.get(part,-1) != -1 or world.blocks.get(part+Vector2i.DOWN,0) == -1:
+     return "Сундук пересекает постройку или не имеет опоры"
+    storage_cells[part] = true
  if world.has("trees"):
   if not world.trees is Array or world.trees.size() > width:
    return "Неверный список деревьев"

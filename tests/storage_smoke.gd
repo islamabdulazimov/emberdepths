@@ -1,0 +1,182 @@
+extends SceneTree
+const Schema = preload("res://scripts/save_schema.gd")
+const Inventory = preload("res://scripts/inventory.gd")
+var failures := 0
+func check_result(ok: bool, message: String) -> void:
+ if ok: print("PASS: ",message)
+ else:
+  failures += 1
+  push_error(message)
+func _initialize() -> void: call_deferred("run")
+func settle() -> void:
+ await physics_frame
+ await physics_frame
+
+func run() -> void:
+ var a = Inventory.new()
+ var b = Inventory.new()
+ a.add("dirt",10)
+ b.add("dirt",95)
+ check_result(a.transfer_to(b,0,0) and b.count_item("dirt") == 99 and a.count_item("dirt") == 6,"Cross-inventory merge respects stack limit and preserves remainder")
+ b.add("stone_pick",1)
+ check_result(a.transfer_to(b,0,1) and a.item_at(0) == "stone_pick" and b.slots[1].count == 6,"Different items swap atomically across inventories")
+ check_result(not a.transfer_to(b,-1,0) and not a.transfer_to(b,0,30) and not a.transfer_to(b,1,0),"Invalid and empty transfer sources change nothing")
+ check_result(a.transfer_to(a,0,2) and a.item_at(2) == "stone_pick","Shared transfer supports ordinary rearrangement")
+ var main = load("res://scenes/main.tscn").instantiate()
+ root.add_child(main)
+ main.set_physics_process(false)
+ main.interaction.set_process(false)
+ main.combat.set_physics_process(false)
+ main.combat.spawning_enabled = false
+ main.encounter.enabled = false
+ main.items.set_physics_process(false)
+ main.player.set_physics_process(false)
+ main.storage.set_physics_process(false)
+ var world = main.world
+ var player = main.player
+ var service = main.storage
+ var bag = main.items.local_inventory()
+ var ui = main.inventory_ui
+ var anchor := Vector2i(98,21)
+ for x in range(94,104):
+  for y in range(18,22): world.apply_edit(Vector2i(x,y),-1)
+  world.apply_edit(Vector2i(x,22),0)
+ world.solid.update_internals()
+ player.position = Vector2(1544,342)
+ await settle()
+ bag.add("wood",6)
+ check_result(main.items.craft(1,"wood_chest").begins_with("Создано") and bag.count_item("wood") == 0 and bag.item_at(0) == "wood_chest","Six wood craft one ordinary chest")
+ player.position = Vector2(1576,342)
+ check_result(not service.place(player,anchor,0),"Chest cannot be placed through a player")
+ player.position = Vector2(1544,342)
+ world.apply_edit(anchor+Vector2i(1,1),-1)
+ check_result(not service.place(player,anchor,0),"Both chest cells require solid floor")
+ world.apply_edit(anchor+Vector2i(1,1),0)
+ world.apply_door(anchor,1)
+ check_result(not service.place(player,anchor,0),"Even an open doorway reserves its footprint")
+ world.apply_door(anchor,-1)
+ world.apply_decoration("torch",anchor,1)
+ check_result(not service.place(player,anchor,0),"Chest placement cannot cover a torch")
+ world.apply_decoration("torch",anchor,-1)
+ main.combat.set_chest(999,{"owner":1,"profile":main.saves.profile_id,"position":world.cell_center(anchor),"contents":Inventory.new().to_data()})
+ check_result(not service.place(player,anchor,0),"New storage cannot cover an existing death chest")
+ main.combat.set_chest(999,{})
+ check_result(service.place(player,anchor,0) and bag.count_item("wood_chest") == 0,"Placement consumes one chest")
+ var chest = service.at_cell(anchor)
+ check_result(chest != null and service.at_cell(anchor+Vector2i.RIGHT) == chest and service.at_cell(anchor+Vector2i.RIGHT*2) == null,"Two footprint cells resolve to the same storage object")
+ bag.add("wood_block",1)
+ bag.add("torch",1)
+ bag.add("wood_door",1)
+ bag.add("wood_wall",1)
+ check_result(not main.items.place_selected(player,anchor,0) and not main.items.place_selected(player,anchor,1) and not main.items.place_selected(player,anchor,2),"Solid blocks torches and doors cannot overlap storage")
+ check_result(main.items.place_selected(player,anchor,3) and world.wall_at(anchor) == 3,"A background wall can be built behind storage")
+ bag.load_data(Inventory.new().to_data())
+ bag.add("stone",10)
+ bag.add("dirt",95)
+ bag.add("spark_balm",5)
+ check_result(not service.open_view(1,anchor,0),"Opening requires an empty hotbar slot")
+ main.network.open_storage_local(anchor+Vector2i.RIGHT,9)
+ check_result(ui.opened and ui.storage_panel.visible and not ui.crafting.visible and ui.storage_slots.size() == 30 and chest.opened,"Empty-slot interaction opens both inventories and lid")
+ ui._click_slot(0)
+ ui._storage_click(true,0)
+ check_result(chest.inventory.count_item("stone") == 10 and bag.count_item("stone") == 0 and chest.revision == 1,"Two UI clicks deposit a whole stack exactly once")
+ check_result(not service.remove_empty(player,anchor) and main.items.primary_status(player,anchor,9) == "Сначала опустоши сундук","Full chest cannot be mined")
+ main.add_player(2,Vector2(1544,342))
+ var peer = main.get_node("Players/2")
+ peer.set_physics_process(false)
+ var peer_bag = main.items.inventory_for(2)
+ check_result(service.open_view(2,anchor,9) and service.viewers.size() == 2,"Two players can inspect the same chest")
+ check_result(not service.move(2,anchor,true,0,false,0,0) and peer_bag.count_item("stone") == 0,"Stale revision rejects a withdrawal")
+ check_result(service.move(2,anchor,true,0,false,0,1) and peer_bag.count_item("stone") == 10,"Current revision withdraws the stack")
+ check_result(not service.move(1,anchor,true,0,false,0,1) and bag.count_item("stone") == 0,"A competing withdrawal cannot duplicate an already moved stack")
+ check_result(not service.remove_empty(player,anchor),"Empty chest cannot be removed while another player has it open")
+ service.move(2,anchor,false,0,true,0,chest.revision)
+ service.move(1,anchor,false,1,true,0,chest.revision)
+ check_result(chest.inventory.count_item("dirt") == 95 and bag.count_item("stone") == 10,"Depositing a different item swaps entire stacks")
+ bag.add("dirt",10)
+ # Locate dirt after the swap rather than relying on add ordering.
+ for i in range(30):
+  if bag.item_at(i) == "dirt": service.move(1,anchor,false,i,true,0,chest.revision)
+ check_result(chest.inventory.count_item("dirt") == 99 and bag.count_item("dirt") == 6,"Chest merge respects maximum stacks without losing surplus")
+ service.move(1,anchor,true,0,true,4,chest.revision)
+ check_result(chest.inventory.slots[4].count == 99 and chest.inventory.item_at(0) == "","Stacks can be rearranged within the chest")
+ check_result(not service.move(1,anchor,true,31,false,0,chest.revision),"Out-of-bounds transfer cannot change contents")
+ check_result(service.objects_snapshot()[anchor].size() == 2 and not service.objects_snapshot()[anchor].has("contents"),"Global snapshots contain only lid and empty metadata")
+ peer.position.x = 100
+ service._physics_process(0)
+ check_result(not service.viewers.has(2) and not service.move(2,anchor,true,4,false,0,chest.revision),"Walking away closes access before further transfers")
+ world.apply_edit(Vector2i(97,21),2)
+ world.solid.update_internals()
+ await settle()
+ service._physics_process(0)
+ check_result(not service.viewers.has(1) and ui.storage_anchor == service.NONE,"A newly built wall interrupts storage access")
+ world.apply_edit(Vector2i(97,21),-1)
+ world.solid.update_internals()
+ await settle()
+ main.network.open_storage_local(anchor,9)
+ player.dead = true
+ service._physics_process(0)
+ check_result(not service.viewers.has(1) and chest.inventory.count_item("dirt") == 99,"Death closes storage and leaves its contents untouched")
+ player.dead = false
+ main.network.open_storage_local(anchor,9)
+ main.saves.save_path = "user://tests/storage.json"
+ check_result(main.saves.save_now(),"Nonempty ordinary storage saves to disk")
+ var saved: Dictionary = main.saves.capture()
+ check_result(main.saves.load_now() and service.at_cell(anchor).inventory.count_item("dirt") == 99 and service.viewers.is_empty() and not service.at_cell(anchor).opened,"Loading restores exact storage contents with closed lid and no stale viewers")
+ player = main.player
+ player.set_physics_process(false)
+ player.position = Vector2(1544,342)
+ chest = service.at_cell(anchor)
+ var bad := saved.duplicate(true)
+ bad.world.storage[anchor][4].count = 100
+ check_result(Schema.validate(bad) != "" and main.saves.restore(bad) != "" and chest.inventory.count_item("dirt") == 99,"Oversized stored stack is rejected before replacing the world")
+ bad = saved.duplicate(true)
+ bad.world.storage[anchor+Vector2i.RIGHT] = Inventory.new().to_data()
+ check_result(Schema.validate(bad) != "","Overlapping saved storage footprints are rejected")
+ bad = saved.duplicate(true)
+ bad.world.doors[anchor] = false
+ check_result(Schema.validate(bad) != "","Save schema rejects storage and door overlap")
+ bad = saved.duplicate(true)
+ bad.world.torches.append(anchor)
+ check_result(Schema.validate(bad) != "","Save schema rejects storage and torch overlap")
+ bad = saved.duplicate(true)
+ bad.world.blocks[anchor+Vector2i.DOWN] = -1
+ check_result(Schema.validate(bad) != "","Save schema rejects storage with a missing floor")
+ var legacy := saved.duplicate(true)
+ legacy.world.erase("storage")
+ check_result(main.saves.restore(legacy) == "" and service.chests.is_empty(),"Old saves without ordinary storage load normally")
+ main.saves.restore(saved)
+ player = main.player
+ player.set_physics_process(false)
+ player.position = Vector2(1544,342)
+ chest = service.at_cell(anchor)
+ main.combat.set_chest(999,{"owner":1,"profile":main.saves.profile_id,"position":world.cell_center(anchor),"contents":Inventory.new().to_data()})
+ check_result(main.items.use_primary(player,anchor,9) and main.combat.chest_at(anchor) == -1 and service.at_cell(anchor) == chest,"Death chest dropped on ordinary storage remains independently breakable")
+ for id in main.items.drops.keys(): main.items.set_drop(id,{})
+ var spirits: int = main.combat.entities.size()
+ main.network.open_storage_local(anchor,9)
+ service.move(1,anchor,true,4,false,10,chest.revision)
+ ui.toggle()
+ check_result(not ui.opened and service.viewers.is_empty() and not chest.opened,"Esc closes both panels and releases the shared chest")
+ check_result(main.items.use_primary(player,anchor,9) and service.chests.is_empty() and main.items.drops.size() == 1 and main.items.drops.values()[0].item_id == "wood_chest","Removing empty closed storage returns exactly one chest item")
+ check_result(not service.remove_empty(player,anchor) and main.items.drops.size() == 1,"Repeated removal cannot duplicate a chest")
+ for id in main.items.drops.keys(): main.items.set_drop(id,{})
+ service.apply_object(anchor,{"empty":true,"opened":false})
+ service.at_cell(anchor).inventory.add("spark_balm",3)
+ service.refresh(anchor)
+ main.network.open_storage_local(anchor,9)
+ check_result(main.items.use_primary(player,anchor+Vector2i.DOWN,9) and service.chests.is_empty() and service.viewers.is_empty(),"Mining either support detaches full storage and closes its viewers")
+ var returned := 0
+ var potions := 0
+ for drop in main.items.drops.values():
+  if drop.item_id == "wood_chest": returned += drop.count
+  if drop.item_id == "spark_balm": potions += drop.count
+ service.check_support()
+ check_result(returned == 1 and potions == 3 and main.items.drops.size() == 3 and main.combat.entities.size() == spirits,"Unsupported storage spills contents and one chest without extra spirits or repeated drops")
+ ui.storage_requested = true
+ ui.opened = false
+ ui.toggle()
+ ui.apply_storage_view(anchor,Inventory.new().to_data(),0)
+ check_result(not ui.opened and ui.storage_anchor == service.NONE,"Cancelling a pending open ignores a delayed reply")
+ print("Storage failures: ",failures)
+ quit(1 if failures else 0)

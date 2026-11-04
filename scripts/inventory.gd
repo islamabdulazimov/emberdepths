@@ -65,6 +65,24 @@ func transfer(source: int, destination: int) -> bool:
 func to_data() -> Array:
  return slots.duplicate(true)
 
+# Atomic transfer; items stay at their source until this operation succeeds.
+func transfer_to(other: RefCounted, source: int, destination: int) -> bool:
+ if other == self: return transfer(source,destination)
+ if source < 0 or source >= slots.size() or destination < 0 or destination >= other.slots.size(): return false
+ var a: Dictionary = slots[source]
+ var b: Dictionary = other.slots[destination]
+ if a.count <= 0: return false
+ if a.item == b.item:
+  var moved := mini(int(a.count),Items.stack_limit(a.item)-int(b.count))
+  if moved <= 0: return false
+  a.count -= moved
+  b.count += moved
+  if a.count == 0: a.item = ""
+ else:
+  slots[source] = b
+  other.slots[destination] = a
+ return true
+
 func load_data(data: Array) -> void:
  for i in range(SLOT_COUNT):
   slots[i] = {"item": "", "count": 0}

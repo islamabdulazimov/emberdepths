@@ -21,6 +21,8 @@ func _ready() -> void:
  generate()
 
 func generate() -> void:
+ var storage = get_parent().get("storage")
+ if is_instance_valid(storage): storage.clear()
  for anchor in doors.keys(): apply_door(anchor,-1)
  heights.clear()
  changes.clear()
@@ -125,6 +127,7 @@ func interaction_status(actor: CharacterBody2D, cell: Vector2i, placing: bool, b
  if block_at(cell) != -1:
   return "Клетка занята"
  if door_at(cell) != null: return "Здесь дверной проём"
+ if storage_at(cell) != null: return "Здесь сундук"
  var area := Rect2(cell_center(cell) - Vector2(8, 8), Vector2(16, 16))
  for body in bodies:
   var collider: CollisionShape2D = body.get_node("Collision")
@@ -211,6 +214,7 @@ func decoration_status(actor: CharacterBody2D, cell: Vector2i, kind: String, pla
   if torches.has(cell):
    return "Факел уже установлен"
   if door_at(cell) != null: return "Здесь дверной проём"
+  if storage_at(cell) != null: return "Здесь сундук"
   if block_at(cell) != -1:
    return "Клетка занята"
   return "Можно поставить факел" if has_support(cell) else "Нет опоры"
@@ -294,7 +298,7 @@ func door_placement_status(actor: CharacterBody2D, anchor: Vector2i, bodies: Arr
  if anchor.y < Structures.DOOR_HEIGHT-1 or anchor.y >= world_depth-1 or anchor.x < 0 or anchor.x >= world_width: return "За границей мира"
  for cell in Structures.door_cells(anchor):
   if not in_reach(actor,cell): return "Дверь вне досягаемости"
-  if block_at(cell) != -1 or door_at(cell) != null or torches.has(cell): return "Нужен свободный проём 1×3"
+  if block_at(cell) != -1 or door_at(cell) != null or torches.has(cell) or storage_at(cell) != null: return "Нужен свободный проём 1×3"
  if block_at(anchor+Vector2i.DOWN) == -1: return "Нужен твёрдый пол под дверью"
  if area_occupied(door_area(anchor),bodies): return "В проёме персонаж или противник"
  return "Можно поставить дверь"
@@ -327,3 +331,7 @@ func apply_door(anchor: Vector2i, value: int) -> void:
 func restore_doors(data: Dictionary) -> void:
  for anchor in doors.keys(): apply_door(anchor,-1)
  for anchor in data: apply_door(anchor,1 if data[anchor] else 0)
+
+func storage_at(cell: Vector2i) -> Node2D:
+ var service = get_parent().get("storage")
+ return service.at_cell(cell) if is_instance_valid(service) else null

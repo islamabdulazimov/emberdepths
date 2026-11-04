@@ -53,6 +53,7 @@ func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Arra
  terrain_changed.emit(cell, block_id)
  _check_torch_support()
  _check_door_support()
+ main.storage.check_support()
  return true
 
 func spawn_drop(item_id: String, amount: int, at: Vector2) -> int:
@@ -186,6 +187,7 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
    return "Сундук слишком далеко"
   var chest_id: int = main.combat.chest_at(cell)
   return "Можно разбить сундук" if main.combat.line_clear(body.position + Vector2(0, -5), main.combat.chests[chest_id].position) else "Сундук за преградой"
+ if kind != "wall" and main.storage.at_cell(cell) != null: return main.storage.removal_status(body,cell)
  if kind == "" and main.combat.enemy_at(cell) != -1:
   if body.resources.stamina < main.combat.Rules.PUNCH_STAMINA_COST: return "Недостаточно выносливости"
   var enemy = main.combat.entities[main.combat.enemy_at(cell)]
@@ -204,6 +206,8 @@ func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float
   return main.world.Structures.DOOR_REMOVE_TIME * float(definition.get("mine_factor",1.0))
  if main.combat.chest_at(cell) != -1:
   return 0.6
+ if main.storage.at_cell(cell) != null and definition.get("kind","") != "wall":
+  return main.world.Structures.CHEST_REMOVE_TIME * float(definition.get("mine_factor",1.0))
  if definition.is_empty() and main.combat.enemy_at(cell) != -1:
   return 0.01
  if definition.get("kind", "") == "wall":
@@ -218,6 +222,7 @@ func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float
 func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
+ if kind == "storage": return main.storage.placement_status(body,cell)
  if kind == "door":
   if body.dead: return "Вы погибли"
   var status: String = main.world.door_placement_status(body,cell,solid_bodies())
@@ -251,6 +256,7 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   return remove_door(body,cell,slot)
  if main.combat.chest_at(cell) != -1:
   return main.combat.break_chest(body, cell)
+ if kind != "wall" and main.storage.at_cell(cell) != null: return main.storage.remove_empty(body,cell)
  if kind == "" and main.combat.enemy_at(cell) != -1:
   return punch(body, main.world.cell_center(cell) - body.position)
  if kind != "wall" and main.world.torches.has(cell):
@@ -338,6 +344,7 @@ func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
+ if kind == "storage": return main.storage.place(body,cell,slot)
  if kind == "door":
   if not main.combat.authoritative() or placement_status(body,cell,slot) != "Можно поставить дверь": return false
   main.world.apply_door(cell,0)

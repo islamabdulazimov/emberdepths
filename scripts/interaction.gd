@@ -35,6 +35,8 @@ func _unhandled_input(event: InputEvent) -> void:
    var cell: Vector2i = world.cell_at(get_global_mouse_position())
    if get_parent().items.selected_definition(player,selected_slot).is_empty() and world.door_at(cell) != null:
     network.toggle_door_local(cell,selected_slot)
+   elif get_parent().items.selected_definition(player,selected_slot).is_empty() and get_parent().storage.at_cell(cell) != null:
+    network.open_storage_local(cell,selected_slot)
 
 func can_use_mouse() -> bool:
  return is_instance_valid(player) and not player.dead and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
@@ -58,6 +60,10 @@ func _process(delta: float) -> void:
   status = primary
   if kind == "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
    status = service.door_toggle_status(player,selected_cell,selected_slot) + " · ПКМ | ЛКМ — снять"
+ if get_parent().combat.chest_at(selected_cell) == -1 and get_parent().storage.at_cell(selected_cell) != null and kind not in ["weapon","axe","consumable","wall"]:
+  status = primary
+  if kind == "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+   status = get_parent().storage.access_status(player,get_parent().storage.at_cell(selected_cell).anchor) + " · ПКМ | ЛКМ — снять пустой"
  outline_color = Color("a9e89b") if status.begins_with("Можно") else Color("e97b77")
  if kind == "weapon":
   outline_color = Color("e97b77") if primary == "Недостаточно выносливости" else Color("f0cc8c")
@@ -109,7 +115,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение / дверь\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
+ label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
  queue_redraw()
 
 func _draw() -> void:
@@ -120,7 +126,12 @@ func _draw() -> void:
  var size := Vector2(16,16)
  var definition: Dictionary = get_parent().items.selected_definition(player,selected_slot)
  var door = world.door_at(selected_cell)
- if definition.get("kind","") == "door" or (door != null and definition.get("kind","") not in ["wall","axe","weapon"]):
+ var chest = get_parent().storage.at_cell(selected_cell)
+ if definition.get("kind","") == "storage" or (chest != null and definition.get("kind","") not in ["wall","axe","weapon"]):
+  var chest_area: Rect2 = get_parent().storage.area(chest.anchor if chest != null else selected_cell)
+  corner = to_local(chest_area.position)
+  size = chest_area.size
+ elif definition.get("kind","") == "door" or (door != null and definition.get("kind","") not in ["wall","axe","weapon"]):
   var area: Rect2 = world.door_area(door.anchor if door != null else selected_cell)
   corner = to_local(area.position)
   size = area.size

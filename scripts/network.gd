@@ -29,6 +29,8 @@ func _ready() -> void:
  main.items.terrain_changed.connect(_terrain_changed)
  main.items.decoration_changed.connect(_decoration_changed)
  main.items.door_changed.connect(_door_changed)
+ main.storage.object_changed.connect(_storage_changed)
+ main.storage.view_changed.connect(_storage_view)
  main.items.attack_started.connect(_attack_started)
  main.items.chop_started.connect(_chop_started)
  main.items.tree_felled.connect(_tree_felled)
@@ -84,6 +86,7 @@ func stop(message: String = "Одиночная игра") -> void:
  if stopping:
   return
  stopping = true
+ main.storage.close_all()
  var was_host := active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()
  var can_notify := active and connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
  if was_host:
@@ -150,7 +153,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot())
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot(), main.storage.objects_snapshot())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -171,6 +174,7 @@ func despawn_remote(id: int) -> void:
  targets.erase(id)
 
 func _peer_left(id: int, _taking_inventory: bool = false) -> void:
+ main.storage.close_view(id,"")
  pending.erase(id)
  if active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server():
   main.saves.detach_peer(id)
@@ -184,7 +188,7 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array, door_state: Dictionary) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array, door_state: Dictionary, storage_state: Dictionary) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -197,6 +201,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
   main.world.apply_decoration("torch", cell, 1)
  main.world.restore_trees(tree_state)
  main.world.restore_doors(door_state)
+ for anchor in storage_state: main.storage.apply_object(anchor,storage_state[anchor])
  main.items.inventories.clear()
  main.items.load_drops(drop_state)
  main.reset_players()
@@ -371,6 +376,51 @@ func request_transfer(source: int, destination: int) -> void:
  var id := multiplayer.get_remote_sender_id()
  if main.get_node("Players").has_node(str(id)):
   main.items.transfer(id, source, destination)
+
+func _storage_changed(anchor: Vector2i, data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_storage_object",[anchor,data])
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_storage_object(anchor: Vector2i, data: Dictionary) -> void:
+ main.storage.apply_object(anchor,data)
+
+func _storage_view(id: int, anchor: Vector2i, slots: Array, revision: int, message: String) -> void:
+ if id == 1 and (not active or multiplayer.is_server()):
+  if is_instance_valid(main.inventory_ui): main.inventory_ui.apply_storage_view(anchor,slots,revision,message)
+ elif active and connected and multiplayer.is_server(): _send(id,"sync_storage_view",[anchor,slots,revision,message])
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_storage_view(anchor: Vector2i, slots: Array, revision: int, message: String) -> void:
+ main.inventory_ui.apply_storage_view(anchor,slots,revision,message)
+
+func open_storage_local(cell: Vector2i, slot: int) -> void:
+ main.inventory_ui.storage_requested = true
+ if not active or (connected and multiplayer.is_server()): main.storage.open_view(int(str(main.player.name)),cell,slot)
+ elif connected: request_open_storage.rpc_id(1,cell,slot)
+
+func close_storage_local() -> void:
+ main.inventory_ui.reset_storage()
+ if not active or (connected and multiplayer.is_server()): main.storage.close_view(int(str(main.player.name)),"")
+ elif connected: request_close_storage.rpc_id(1)
+
+func move_storage_local(anchor: Vector2i, from_box: bool, source: int, to_box: bool, destination: int, revision: int) -> void:
+ if not active or (connected and multiplayer.is_server()): main.storage.move(int(str(main.player.name)),anchor,from_box,source,to_box,destination,revision)
+ elif connected: request_move_storage.rpc_id(1,anchor,from_box,source,to_box,destination,revision)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_open_storage(cell: Vector2i, slot: int) -> void:
+ var id := multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id): main.storage.open_view(id,cell,slot)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_close_storage() -> void:
+ var id := multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id): main.storage.close_view(id,"")
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_move_storage(anchor: Vector2i, from_box: bool, source: int, to_box: bool, destination: int, revision: int) -> void:
+ var id := multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id): main.storage.move(id,anchor,from_box,source,to_box,destination,revision)
 
 
 func _terrain_changed(cell: Vector2i, block_id: int) -> void:
