@@ -22,6 +22,7 @@ var main: Node2D
 
 func _ready() -> void:
  main = get_parent()
+ main.encounter.changed.connect(_boss_changed)
  main.combat.entity_changed.connect(_entity_changed)
  main.combat.chest_changed.connect(_chest_changed)
  main.combat.player_changed.connect(_player_changed)
@@ -146,7 +147,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected)
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -180,7 +181,7 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -200,6 +201,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
  main.items.local_inventory().load_data(inventory_data)
  main.combat.apply_snapshot(combat_state)
  main.interaction.selected_slot = selected
+ main.encounter.apply(boss_state)
  connected = true
  status = "Подключён · игроков: %d/4" % roster.size()
 
@@ -443,3 +445,12 @@ func _broadcast(method: String, arguments: Array) -> void:
  # cannot be sent packets even before peer_disconnected has been dispatched.
  for peer_id in main.saves.peer_profiles:
   _send(peer_id, method, arguments)
+
+
+func _boss_changed(data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server():
+  _broadcast("sync_boss", [data])
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_boss(data: Dictionary) -> void:
+ main.encounter.apply(data)

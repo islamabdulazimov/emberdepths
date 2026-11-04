@@ -15,6 +15,7 @@ var write_blocked := false
 var profiles: Dictionary = {}
 var peer_profiles: Dictionary = {}
 var return_state: Dictionary = {}
+var return_encounter: Dictionary = {}
 var elapsed := 0.0
 var save_path := ""
 var save_label: Label
@@ -274,6 +275,7 @@ func restore(state: Dictionary) -> String:
   return error
  if state.host_profile != profile_id or state.profiles[profile_id].key_hash != profile_key.sha256_text():
   return "Мир принадлежит другому локальному профилю"
+ main.encounter.cancel_for_load()
  main.world.world_seed = state.world.seed
  main.world.world_width = state.world.width
  main.world.world_depth = state.world.depth
@@ -430,6 +432,7 @@ func new_world() -> void:
   status = "Не удалось архивировать резервную копию"
   return
  # No old player/entity data may bleed into the new world.
+ main.encounter.reset_run()
  profiles.clear()
  main.world.world_seed = posmod(main.world.world_seed + 1, 2147483647)
  main.world.generate()
@@ -456,10 +459,13 @@ func begin_visit() -> bool:
  if automatic and not save_now():
   return false
  return_state = capture()
+ return_encounter = main.encounter.snapshot()
  return true
 
 func end_visit() -> void:
  if not return_state.is_empty():
   var error := restore(return_state)
   return_state.clear()
+  if error == "" and not return_encounter.is_empty(): main.encounter.apply(return_encounter)
+  return_encounter.clear()
   status = "Возврат в свой одиночный мир" if error == "" else "Ошибка возврата: " + error

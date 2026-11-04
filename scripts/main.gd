@@ -5,6 +5,8 @@ var interaction: Node2D
 var network: Node
 var items: Node2D
 var combat: Node2D
+var encounter: Node2D
+var boss_ui: Control
 var saves: Node
 var close_dialog: ConfirmationDialog
 var closing := false
@@ -27,6 +29,10 @@ func _ready() -> void:
  combat.name = "Combat"
  combat.set_script(preload("res://scripts/combat.gd"))
  add_child(combat)
+ encounter = Node2D.new()
+ encounter.name = "BossEncounter"
+ encounter.set_script(preload("res://scripts/boss_encounter.gd"))
+ add_child(encounter)
  saves = Node.new()
  saves.name = "Saves"
  saves.set_script(preload("res://scripts/save_service.gd"))
@@ -54,6 +60,10 @@ func _ready() -> void:
  resources_ui.main = self
  resources_ui.position = Vector2(14, 14)
  $HUD.add_child(resources_ui)
+ boss_ui = Control.new()
+ boss_ui.set_script(preload("res://scripts/boss_ui.gd"))
+ boss_ui.main = self
+ $HUD.add_child(boss_ui)
  _create_network_ui()
  saves.startup()
  get_tree().auto_accept_quit = false

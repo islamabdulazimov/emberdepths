@@ -253,6 +253,12 @@ func resolve_attack(id: int, direction: Vector2) -> void:
   var offset := target - origin
   if offset.length() <= float(profile.reach) + 7 and (offset.length() < 1 or offset.normalized().dot(direction) >= 0.2) and line_clear(origin, target):
    hit_entity(target_id, int(profile.damage), direction)
+ if is_instance_valid(main.encounter.actor):
+  var boss = main.encounter.actor
+  var target: Vector2 = boss.position + Vector2(0, -29)
+  var offset: Vector2 = target - origin
+  if offset.length() <= float(profile.reach) + 23 and (offset.length() < 1 or offset.normalized().dot(direction) >= 0.2) and line_clear(origin, target):
+   boss.take_hit(int(profile.damage), int(profile.damage))
  for chest_id in chests.keys():
   var target: Vector2 = chests[chest_id].position
   var offset := target - origin
@@ -271,12 +277,14 @@ func hit_entity(id: int, damage: int, direction: Vector2) -> bool:
  enemy.hit_stun = 0.2
  enemy.velocity.x = direction.x * 150
  if enemy.health <= 0:
+  var defeated_kind: String = enemy.kind
   var at: Vector2 = enemy.position
   var loot: String = Rules.ENEMIES[enemy.kind].loot
   set_entity(id, {})
   entity_changed.emit(id, {})
   if loot != "":
    main.items.spawn_drop(loot, 1, at)
+  if is_instance_valid(main.encounter): main.encounter.register_kill(defeated_kind)
  else:
   entity_changed.emit(id, entity_data(id))
  return true
@@ -406,7 +414,7 @@ func apply_snapshot(state: Dictionary) -> void:
   apply_player_state(id, state.players[id])
 
 func motion_snapshot() -> Dictionary:
- var state := {"time": world_time, "poses": {}}
+ var state := {"time": world_time, "poses": {}, "encounter": main.encounter.motion_snapshot()}
  for id in entities:
   state.poses[id] = [entities[id].position, entities[id].velocity]
  return state
@@ -414,6 +422,7 @@ func motion_snapshot() -> Dictionary:
 func apply_motion(state: Dictionary) -> void:
  world_time = state.time
  remote_targets = state.poses
+ if state.has("encounter"): main.encounter.apply_motion(state.encounter)
 
 func _process(delta: float) -> void:
  if not is_instance_valid(main.network) or not main.network.active or not main.network.connected or multiplayer.is_server():
