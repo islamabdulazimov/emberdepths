@@ -2,6 +2,8 @@ import subprocess,time,os,tempfile
 from pathlib import Path
 import sys
 root=Path(__file__).resolve().parents[1]
+crafting_mode="--crafting" in sys.argv
+script="tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd"
 failed=False
 log_dir=Path(tempfile.mkdtemp(prefix="emberdepths-network-"))
 env=os.environ.copy()
@@ -9,13 +11,17 @@ env.update(XDG_DATA_HOME=str(log_dir/'data'), XDG_CONFIG_HOME=str(log_dir/'confi
 processes=[]
 def launch(role):
  log=(log_dir/(role+'.log')).open('w')
- proc=subprocess.Popen(['godot','--headless','--path',str(root),'--script','tests/network_smoke.gd','--',role],stdout=log,stderr=subprocess.STDOUT,env=env)
+ proc=subprocess.Popen(['godot','--headless','--path',str(root),'--script',script,'--',role],stdout=log,stderr=subprocess.STDOUT,env=env)
  processes.append((role,proc,log))
 try:
  launch('host');time.sleep(.5)
- launch('client1');launch('client2');time.sleep(2.7)
- launch('late');time.sleep(.6)
- launch('rejected')
+ if crafting_mode:
+  launch('builder');time.sleep(3.0)
+  launch('late')
+ else:
+  launch('client1');launch('client2');time.sleep(2.7)
+  launch('late');time.sleep(.6)
+  launch('rejected')
  for role,proc,log in processes:
   code=proc.wait(timeout=20);log.close()
   print(role,'exit',code)

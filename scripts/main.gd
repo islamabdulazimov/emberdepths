@@ -5,9 +5,12 @@ var interaction: Node2D
 var network: Node
 var items: Node2D
 var inventory_ui: CanvasLayer
+var ambient: CanvasModulate
 @onready var world = $World
 
 func _ready() -> void:
+ ambient = CanvasModulate.new()
+ add_child(ambient)
  RenderingServer.set_default_clear_color(Color("8aabb0"))
  _bind_key("move_left", KEY_A)
  _bind_key("move_right", KEY_D)
@@ -26,7 +29,6 @@ func _ready() -> void:
  interaction.set_script(preload("res://scripts/interaction.gd"))
  interaction.world = world
  interaction.player = player
- interaction.bodies = $Players
  interaction.label = $HUD/Panel/Label
  interaction.network = network
  interaction.z_index = 5
@@ -138,3 +140,12 @@ func _bind_key(action: String, code: Key) -> void:
  event.physical_keycode = code
  if not InputMap.action_has_event(action, event):
   InputMap.action_add_event(action, event)
+
+
+func _process(_delta: float) -> void:
+ if not is_instance_valid(player) or world.heights.is_empty():
+  return
+ var column := clampi(floori(player.position.x / 16.0), 0, world.world_width - 1)
+ var depth: float = player.position.y / 16.0 - world.heights[column]
+ var underground := clampf((depth - 2.0) / 13.0, 0.0, 1.0)
+ ambient.color = Color("eef1e4").lerp(Color("172331"), underground)

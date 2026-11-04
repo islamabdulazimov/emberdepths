@@ -1,16 +1,13 @@
 extends Node2D
-const Blocks = preload("res://data/blocks.gd")
+const Items = preload("res://data/items.gd")
 var network: Node
 var world: Node2D
 var player: CharacterBody2D
-var bodies: Node2D
 var label: Label
 var selected_slot: int = 0
-var selected_block: int:
- get:
-  return get_parent().items.local_inventory().block_in_slot(selected_slot)
 var selected_cell := Vector2i.ZERO
 var mining_cell := Vector2i(-1, -1)
+var mining_slot := -1
 var mining_time := 0.0
 var build_cooldown := 0.0
 var outline_color := Color.WHITE
@@ -41,39 +38,47 @@ func can_use_mouse() -> bool:
 func _process(delta: float) -> void:
  if not is_instance_valid(player):
   return
+ var service = get_parent().items
  selected_cell = world.cell_at(get_global_mouse_position())
- var players := bodies.get_children()
- var mine_status: String = world.interaction_status(player, selected_cell, false, players)
- var build_status: String = world.interaction_status(player, selected_cell, true, players)
- if selected_block == -1:
-  build_status = "Выбран пустой слот"
- var has_block: bool = world.block_at(selected_cell) != -1
- var status := mine_status if has_block else build_status
- outline_color = Color("a9e89b") if status in ["Можно добыть", "Можно построить"] else Color("e97b77")
+ var definition: Dictionary = service.selected_definition(player, selected_slot)
+ var kind: String = definition.get("kind", "")
+ var primary: String = service.primary_status(player, selected_cell, selected_slot)
+ var placement: String = service.placement_status(player, selected_cell, selected_slot)
+ var status := primary if world.block_at(selected_cell) != -1 or kind == "weapon" else placement
+ if kind == "wall" and world.wall_at(selected_cell) != -1:
+  status = primary
+ if world.torches.has(selected_cell):
+  status = primary
+ outline_color = Color("a9e89b") if status.begins_with("Можно") else Color("e97b77")
+ if kind == "weapon":
+  outline_color = Color("f0cc8c")
  build_cooldown = maxf(0.0, build_cooldown - delta)
- if can_use_mouse() and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and mine_status == "Можно добыть":
-  if mining_cell != selected_cell:
+ if can_use_mouse() and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+  if kind == "weapon":
    mining_time = 0.0
-   mining_cell = selected_cell
-  mining_time += delta
-  var duration: float = Blocks.DEFINITIONS[world.block_at(selected_cell)].mine_time
-  if mining_time >= duration:
    if not network.active:
-    get_parent().items.try_edit(player, selected_cell, -1, players)
+    service.use_primary(player, selected_cell, selected_slot)
+  elif primary.begins_with("Можно"):
+   if mining_cell != selected_cell or mining_slot != selected_slot:
+    mining_time = 0.0
+    mining_cell = selected_cell
+    mining_slot = selected_slot
+   mining_time += delta
+   if mining_time >= service.primary_duration(player, selected_cell, selected_slot):
+    if not network.active:
+     service.use_primary(player, selected_cell, selected_slot)
+    mining_time = 0.0
+  else:
    mining_time = 0.0
  else:
   mining_time = 0.0
   mining_cell = Vector2i(-1, -1)
- # Left mouse takes precedence when both buttons are held.
- if selected_block != -1 and not network.active and can_use_mouse() and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and build_cooldown <= 0.0:
-  if get_parent().items.try_edit(player, selected_cell, selected_block, players, selected_slot):
+ if not network.active and can_use_mouse() and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and build_cooldown <= 0.0:
+  if service.place_selected(player, selected_cell, selected_slot):
    build_cooldown = 0.18
  if get_parent().inventory_ui.opened:
-  status = "Закрой инвентарь для добычи и строительства"
- var item_name := "Пусто"
- if selected_block != -1:
-  item_name = Blocks.DEFINITIONS[selected_block].name
- label.text = "EMBERDEPTHS · ЭТАП 3 · Seed: %d\nA/D · Space · ЛКМ — добыть · ПКМ — строить · Esc — инвентарь\n1–0 / колесо — слот | Выбрано: %s | %s\nПодбор рядом автоматически · Мир и вещи пока не сохраняются" % [world.world_seed, item_name, status]
+  status = "Инвентарь и крафт открыты"
+ label.text = "EMBERDEPTHS · ЭТАП 4 · Seed: %d\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s · Прогресс пока не сохраняется" % [world.world_seed, definition.get("name", "Пустой слот"), status]
  queue_redraw()
 
 func _draw() -> void:
@@ -81,8 +86,6 @@ func _draw() -> void:
   return
  var corner: Vector2 = to_local(world.cell_center(selected_cell)) - Vector2(8, 8)
  draw_rect(Rect2(corner, Vector2(16, 16)), outline_color, false, 1.0)
- if mining_time > 0.0:
-  var id: int = world.block_at(selected_cell)
-  if id != -1:
-   var fraction := clampf(mining_time / float(Blocks.DEFINITIONS[id].mine_time), 0.0, 1.0)
-   draw_rect(Rect2(corner + Vector2(0, 13), Vector2(16 * fraction, 3)), Color("f0dc8c"))
+ if mining_time > 0.0 and is_instance_valid(player):
+  var duration: float = get_parent().items.primary_duration(player, selected_cell, selected_slot)
+  draw_rect(Rect2(corner + Vector2(0, 13), Vector2(16 * clampf(mining_time / duration, 0.0, 1.0), 3)), Color("f0dc8c"))

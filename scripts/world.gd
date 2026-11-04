@@ -5,6 +5,9 @@ const Blocks = preload("res://data/blocks.gd")
 @export var world_depth: int = 72
 var solid: TileMapLayer
 var walls: TileMapLayer
+var wall_changes: Dictionary = {}
+var torches: Dictionary = {}
+const Torch = preload("res://scripts/torch.gd")
 var heights: PackedInt32Array = []
 
 func _ready() -> void:
@@ -13,6 +16,9 @@ func _ready() -> void:
 func generate() -> void:
  heights.clear()
  changes.clear()
+ wall_changes.clear()
+ for cell in torches.keys():
+  apply_decoration("torch", cell, -1)
  if is_instance_valid(solid):
   remove_child(solid)
   solid.queue_free()
@@ -23,16 +29,20 @@ func generate() -> void:
  tiles.tile_size = Vector2i(16, 16)
  tiles.add_physics_layer()
  tiles.set_physics_layer_collision_layer(0, 1)
- var atlas := TileSetAtlasSource.new()
- atlas.texture = preload("res://assets/terrain.png")
- atlas.texture_region_size = Vector2i(16, 16)
- tiles.add_source(atlas, 0)
- for id in Blocks.DEFINITIONS:
-  var cell: Vector2i = Blocks.DEFINITIONS[id].atlas
-  atlas.create_tile(cell)
-  var tile := atlas.get_tile_data(cell, 0)
-  tile.set_collision_polygons_count(0, 1)
-  tile.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-8,-8), Vector2(8,-8), Vector2(8,8), Vector2(-8,8)]))
+ for source_id in [0, 1]:
+  var atlas := TileSetAtlasSource.new()
+  atlas.texture = preload("res://assets/terrain.png") if source_id == 0 else preload("res://assets/icons/emberstone.svg")
+  atlas.texture_region_size = Vector2i(16, 16)
+  tiles.add_source(atlas, source_id)
+  for id in Blocks.DEFINITIONS:
+   var definition: Dictionary = Blocks.DEFINITIONS[id]
+   if int(definition.get("source", 0)) != source_id:
+    continue
+   var cell: Vector2i = definition.atlas
+   atlas.create_tile(cell)
+   var tile := atlas.get_tile_data(cell, 0)
+   tile.set_collision_polygons_count(0, 1)
+   tile.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-8,-8), Vector2(8,-8), Vector2(8,8), Vector2(-8,8)]))
  walls = TileMapLayer.new()
  walls.name = "BackgroundWalls"
  walls.tile_set = tiles
@@ -57,10 +67,15 @@ func generate() -> void:
   heights.append(top)
   for y in range(top, world_depth):
    var id: int = Blocks.GRASS if y == top else (Blocks.DIRT if y < top + 6 else Blocks.STONE)
+   # Small fuel deposits reachable during the first descent.
+   if y >= top + 3 and y < world_depth - 2 and posmod(x * 31 + y * 17 + world_seed, 47) < 3:
+    id = Blocks.EMBERSTONE
+   if x == world_width / 2 + 3 and y in [25, 26]:
+    id = Blocks.EMBERSTONE
    walls.set_cell(Vector2i(x, y), 0, Vector2i(2, 0))
    var is_cave := y > top + 7 and y < world_depth - 2 and absf(caves.get_noise_2d(x, y)) < 0.105
    if not is_cave:
-    solid.set_cell(Vector2i(x, y), 0, Blocks.DEFINITIONS[id].atlas)
+    solid.set_cell(Vector2i(x, y), int(Blocks.DEFINITIONS[id].get("source", 0)), Blocks.DEFINITIONS[id].atlas)
  solid.update_internals()
 
 func spawn_position() -> Vector2:
@@ -81,7 +96,7 @@ func block_at(cell: Vector2i) -> int:
   return -1
  var atlas := solid.get_cell_atlas_coords(cell)
  for id in Blocks.DEFINITIONS:
-  if Blocks.DEFINITIONS[id].atlas == atlas:
+  if Blocks.DEFINITIONS[id].atlas == atlas and int(Blocks.DEFINITIONS[id].get("source", 0)) == solid.get_cell_source_id(cell):
    return id
  return -1
 
@@ -121,5 +136,64 @@ func apply_edit(cell: Vector2i, block_id: int) -> void:
  if block_id == -1:
   solid.erase_cell(cell)
  else:
-  solid.set_cell(cell, 0, Blocks.DEFINITIONS[block_id].atlas)
+  solid.set_cell(cell, int(Blocks.DEFINITIONS[block_id].get("source", 0)), Blocks.DEFINITIONS[block_id].atlas)
  changes[cell] = block_id
+
+
+func in_reach(actor: CharacterBody2D, cell: Vector2i) -> bool:
+ return cell.x >= 0 and cell.x < world_width and cell.y >= 0 and cell.y < world_depth and actor.global_position.distance_to(cell_center(cell)) <= REACH
+
+func wall_at(cell: Vector2i) -> int:
+ return -1 if walls.get_cell_source_id(cell) == -1 else walls.get_cell_atlas_coords(cell).x
+
+func has_support(cell: Vector2i) -> bool:
+ if wall_at(cell) != -1:
+  return true
+ for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+  if block_at(cell + offset) != -1:
+   return true
+ return false
+
+func decoration_status(actor: CharacterBody2D, cell: Vector2i, kind: String, placing: bool) -> String:
+ if not in_reach(actor, cell):
+  return "Вне досягаемости"
+ if kind == "torch":
+  if not placing:
+   return "Можно снять факел" if torches.has(cell) else "Здесь нет факела"
+  if torches.has(cell):
+   return "Факел уже установлен"
+  if block_at(cell) != -1:
+   return "Клетка занята"
+  return "Можно поставить факел" if has_support(cell) else "Нет опоры"
+ if kind == "wall":
+  if not placing:
+   if block_at(cell) != -1:
+    return "Сначала убери твёрдый блок"
+   return "Можно снять стену" if wall_at(cell) != -1 else "Здесь нет стены"
+  if wall_at(cell) != -1:
+   return "Стена уже есть"
+  var anchored := block_at(cell) != -1 or has_support(cell)
+  for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+   if wall_at(cell + offset) != -1:
+    anchored = true
+  return "Можно поставить стену" if anchored else "Нет опоры"
+ return "Неизвестный слой"
+
+func apply_decoration(kind: String, cell: Vector2i, value: int) -> void:
+ if kind == "wall":
+  if value == -1:
+   walls.erase_cell(cell)
+  else:
+   walls.set_cell(cell, 0, Vector2i(value, 0))
+  wall_changes[cell] = value
+ elif kind == "torch":
+  if value == -1 and torches.has(cell):
+   remove_child(torches[cell])
+   torches[cell].queue_free()
+   torches.erase(cell)
+  elif value != -1 and not torches.has(cell):
+   var torch := Node2D.new()
+   torch.set_script(Torch)
+   torch.position = to_local(cell_center(cell))
+   add_child(torch)
+   torches[cell] = torch

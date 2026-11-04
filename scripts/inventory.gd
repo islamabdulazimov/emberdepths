@@ -1,4 +1,5 @@
 extends RefCounted
+const Recipes = preload("res://data/recipes.gd")
 const Items = preload("res://data/items.gd")
 const SLOT_COUNT := 30
 const HOTBAR_COUNT := 10
@@ -16,7 +17,7 @@ func add(item_id: String, amount: int) -> int:
  for empty_pass in [false, true]:
   for slot in slots:
    if (slot.item == "" if empty_pass else slot.item == item_id):
-    var accepted := mini(remaining, Items.STACK_LIMIT - int(slot.count))
+    var accepted := mini(remaining, Items.stack_limit(item_id) - int(slot.count))
     if accepted > 0:
      slot.item = item_id
      slot.count += accepted
@@ -49,7 +50,7 @@ func transfer(source: int, destination: int) -> bool:
  if a.count <= 0:
   return false
  if a.item == b.item:
-  var moved := mini(int(a.count), Items.STACK_LIMIT - int(b.count))
+  var moved := mini(int(a.count), Items.stack_limit(a.item) - int(b.count))
   if moved <= 0:
    return false
   a.count -= moved
@@ -69,6 +70,56 @@ func load_data(data: Array) -> void:
   slots[i] = {"item": "", "count": 0}
   if i < data.size() and data[i] is Dictionary:
    var item_id := str(data[i].get("item", ""))
-   var amount := clampi(int(data[i].get("count", 0)), 0, Items.STACK_LIMIT)
+   var amount := clampi(int(data[i].get("count", 0)), 0, Items.stack_limit(item_id))
    if Items.DEFINITIONS.has(item_id) and amount > 0:
     slots[i] = {"item": item_id, "count": amount}
+
+
+func item_at(index: int) -> String:
+ if index < 0 or index >= SLOT_COUNT or slots[index].count <= 0:
+  return ""
+ return str(slots[index].item)
+
+func count_item(item_id: String) -> int:
+ var amount := 0
+ for slot in slots:
+  if slot.item == item_id:
+   amount += int(slot.count)
+ return amount
+
+func remove_item(item_id: String, amount: int) -> bool:
+ if amount <= 0 or count_item(item_id) < amount:
+  return false
+ var remaining := amount
+ for slot in slots:
+  if slot.item == item_id:
+   var used := mini(remaining, int(slot.count))
+   slot.count -= used
+   remaining -= used
+   if slot.count == 0:
+    slot.item = ""
+   if remaining == 0:
+    break
+ return true
+
+func craft_preview(recipe_id: String) -> Dictionary:
+ if not Recipes.DEFINITIONS.has(recipe_id):
+  return {"status": "Неизвестный рецепт"}
+ var recipe: Dictionary = Recipes.DEFINITIONS[recipe_id]
+ for item_id in recipe.ingredients:
+  if count_item(item_id) < int(recipe.ingredients[item_id]):
+   return {"status": "Не хватает: " + Items.DEFINITIONS[item_id].name}
+ var trial = get_script().new()
+ trial.load_data(to_data())
+ for item_id in recipe.ingredients:
+  trial.remove_item(item_id, recipe.ingredients[item_id])
+ if trial.add(recipe.output, recipe.count) != 0:
+  return {"status": "Нет места для результата"}
+ return {"status": "Можно создать", "slots": trial.to_data()}
+
+func craft(recipe_id: String) -> bool:
+ var preview := craft_preview(recipe_id)
+ if preview.status != "Можно создать":
+  return false
+ load_data(preview.slots)
+ return true

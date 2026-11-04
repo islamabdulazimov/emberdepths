@@ -18,6 +18,9 @@ var main: Node2D
 
 func _ready() -> void:
  main = get_parent()
+ main.items.terrain_changed.connect(_terrain_changed)
+ main.items.decoration_changed.connect(_decoration_changed)
+ main.items.attack_started.connect(_attack_started)
  main.items.inventory_changed.connect(_inventory_changed)
  main.items.drop_changed.connect(_drop_changed)
  multiplayer.peer_connected.connect(_peer_joined)
@@ -105,7 +108,7 @@ func _peer_joined(id: int) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data())
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -144,13 +147,17 @@ func _peer_left(id: int, taking_inventory: bool = false) -> void:
  targets.erase(id)
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
  main.world.generate()
  for edit in edits:
   main.world.apply_edit(edit[0], edit[1])
+ for cell in wall_state:
+  main.world.apply_decoration("wall", cell, wall_state[cell])
+ for cell in torch_cells:
+  main.world.apply_decoration("torch", cell, 1)
  main.items.inventories.clear()
  main.items.load_drops(drop_state)
  main.reset_players()
@@ -215,22 +222,24 @@ func _physics_process(delta: float) -> void:
   command.jump = false
   cooldowns[id] = maxf(0.0, float(cooldowns.get(id, 0.0)) - delta)
   var cell: Vector2i = command.cell
-  var bodies := main.get_node("Players").get_children()
-  if command.mode == 1 and main.world.interaction_status(body, cell, false, bodies) == "Можно добыть":
-   var progress: Dictionary = mining.get(id, {"cell": cell, "time": 0.0})
-   if progress.cell != cell:
-    progress = {"cell": cell, "time": 0.0}
+  var definition: Dictionary = main.items.selected_definition(body, command.slot)
+  var primary: String = main.items.primary_status(body, cell, command.slot)
+  if command.mode == 1 and definition.get("kind", "") == "weapon":
+   mining.erase(id)
+   main.items.use_primary(body, cell, command.slot)
+  elif command.mode == 1 and primary.begins_with("Можно"):
+   var progress: Dictionary = mining.get(id, {"cell": cell, "slot": command.slot, "time": 0.0})
+   if progress.cell != cell or progress.slot != command.slot:
+    progress = {"cell": cell, "slot": command.slot, "time": 0.0}
    progress.time += delta
-   var block: int = main.world.block_at(cell)
-   if progress.time >= float(main.world.Blocks.DEFINITIONS[block].mine_time):
-    _edit(body, cell, -1, bodies)
+   if progress.time >= main.items.primary_duration(body, cell, command.slot):
+    main.items.use_primary(body, cell, command.slot)
     progress.time = 0.0
    mining[id] = progress
   else:
    mining.erase(id)
   if command.mode == 2 and cooldowns[id] <= 0.0:
-   var block_id: int = main.items.inventory_for(id).block_in_slot(command.slot)
-   if block_id != -1 and _edit(body, cell, block_id, bodies, command.slot):
+   if main.items.place_selected(body, cell, command.slot):
     cooldowns[id] = 0.18
  snapshot_clock += delta
  if snapshot_clock >= 0.05:
@@ -242,12 +251,6 @@ func _physics_process(delta: float) -> void:
   for id in main.items.drops:
    drop_positions[id] = main.items.drops[id].position
   sync_positions.rpc(state, drop_positions)
-
-func _edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Array, slot: int = -1) -> bool:
- if not main.items.try_edit(body, cell, block_id, bodies, slot):
-  return false
- terrain_edit.rpc(cell, block_id)
- return true
 
 @rpc("authority", "call_remote", "reliable", 0)
 func terrain_edit(cell: Vector2i, block_id: int) -> void:
@@ -307,3 +310,47 @@ func request_transfer(source: int, destination: int) -> void:
  var id := multiplayer.get_remote_sender_id()
  if main.get_node("Players").has_node(str(id)):
   main.items.transfer(id, source, destination)
+
+
+func _terrain_changed(cell: Vector2i, block_id: int) -> void:
+ if active and connected and multiplayer.is_server():
+  terrain_edit.rpc(cell, block_id)
+
+func _decoration_changed(kind: String, cell: Vector2i, value: int) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_decoration.rpc(kind, cell, value)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
+ main.world.apply_decoration(kind, cell, value)
+
+func _attack_started(id: int, direction: Vector2) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_attack.rpc(id, direction)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_attack(id: int, direction: Vector2) -> void:
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body != null:
+  body.play_swing(direction)
+
+func craft_local(recipe_id: String) -> void:
+ if not connected or stopping:
+  return
+ if multiplayer.is_server():
+  main.inventory_ui.show_craft_result(main.items.craft(1, recipe_id))
+ else:
+  request_craft.rpc_id(1, recipe_id)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_craft(recipe_id: String) -> void:
+ if not multiplayer.is_server():
+  return
+ var id := multiplayer.get_remote_sender_id()
+ if main.get_node("Players").has_node(str(id)):
+  var result: String = main.items.craft(id, recipe_id)
+  craft_feedback.rpc_id(id, result)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func craft_feedback(message: String) -> void:
+ main.inventory_ui.show_craft_result(message)

@@ -8,6 +8,8 @@ var move_command: float = 0.0
 var jump_command: bool = false
 var facing := 1
 var elapsed := 0.0
+var swing_remaining := 0.0
+var swing_direction := Vector2.RIGHT
 
 func submit_command(axis: float, jump: bool) -> void:
  move_command = clampf(axis, -1.0, 1.0)
@@ -26,6 +28,17 @@ func _physics_process(delta: float) -> void:
  elapsed += delta
  queue_redraw()
 
+func play_swing(direction: Vector2) -> void:
+ swing_remaining = 0.24
+ swing_direction = direction
+ facing = 1 if direction.x >= 0 else -1
+ queue_redraw()
+
+func _process(delta: float) -> void:
+ if swing_remaining > 0.0:
+  swing_remaining = maxf(0.0, swing_remaining - delta)
+  queue_redraw()
+
 func _draw() -> void:
  var stride := sin(elapsed * 16.0) * 2.0 if is_on_floor() and absf(velocity.x) > 5 else 0.0
  draw_rect(Rect2(-5, -8, 10, 12), Color("456b77"))
@@ -35,3 +48,11 @@ func _draw() -> void:
  draw_rect(Rect2(facing * 2, -13, 2, 2), Color("202b3c"))
  draw_rect(Rect2(-4, 4, 3, 6 + stride), Color("303c52"))
  draw_rect(Rect2(1, 4, 3, 6 - stride), Color("303c52"))
+
+ if swing_remaining > 0.0:
+  var angle := swing_direction.angle() + lerpf(-1.15, 1.15, 1.0 - swing_remaining / 0.24)
+  var hand := Vector2(0, -5)
+  var tip := hand + Vector2.from_angle(angle) * 24.0
+  draw_arc(hand, 24.0, angle - 0.5, angle, 12, Color(0.95, 0.87, 0.64, 0.45), 2.0)
+  draw_line(hand, tip, Color("b9ccce"), 3.0)
+  draw_line(hand, hand + Vector2.from_angle(angle) * 5.0, Color("a88158"), 4.0)

@@ -1,8 +1,32 @@
 extends RefCounted
-# Item IDs are independent of terrain IDs; tools and recipes can extend this table.
+# Item IDs are independent of terrain IDs; recipes live in recipes.gd.
 const STACK_LIMIT := 99
 const DEFINITIONS := {
- "dirt": {"name": "Земля", "block": 1, "atlas": Vector2i(1, 0)},
- "stone": {"name": "Камень", "block": 2, "atlas": Vector2i(2, 0)},
- "turf": {"name": "Дёрн", "block": 0, "atlas": Vector2i(0, 0)},
+ "dirt": {"name": "Земля", "kind": "solid", "block": 1, "atlas": Vector2i(1, 0)},
+ "stone": {"name": "Камень", "kind": "solid", "block": 2, "atlas": Vector2i(2, 0)},
+ "turf": {"name": "Дёрн", "kind": "solid", "block": 0, "atlas": Vector2i(0, 0)},
+ "emberstone": {"name": "Искрокамень", "kind": "solid", "block": 3, "icon": "res://assets/icons/emberstone.svg"},
+ "stone_pick": {"name": "Каменная кирка", "kind": "tool", "stack": 1, "mine_factor": 0.5, "icon": "res://assets/icons/pick.svg"},
+ "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": 0.45, "icon": "res://assets/icons/blade.svg"},
+ "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
+ "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},
+ "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},
 }
+static var icon_cache: Dictionary = {}
+
+static func stack_limit(item_id: String) -> int:
+ return int(DEFINITIONS.get(item_id, {}).get("stack", STACK_LIMIT))
+
+static func icon(item_id: String) -> Texture2D:
+ if not DEFINITIONS.has(item_id):
+  return null
+ if not icon_cache.has(item_id):
+  var definition: Dictionary = DEFINITIONS[item_id]
+  if definition.has("icon"):
+   icon_cache[item_id] = load(definition.icon)
+  else:
+   var texture := AtlasTexture.new()
+   texture.atlas = preload("res://assets/terrain.png")
+   texture.region = Rect2(Vector2(definition.atlas) * 16.0, Vector2(16, 16))
+   icon_cache[item_id] = texture
+ return icon_cache[item_id]

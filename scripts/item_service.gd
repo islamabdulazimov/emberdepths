@@ -1,6 +1,10 @@
 extends Node2D
+signal terrain_changed(cell: Vector2i, block_id: int)
+signal decoration_changed(kind: String, cell: Vector2i, value: int)
+signal attack_started(id: int, direction: Vector2)
 signal inventory_changed(id: int)
 signal drop_changed(id: int, data: Dictionary)
+const Recipes = preload("res://data/recipes.gd")
 const Inventory = preload("res://scripts/inventory.gd")
 const Items = preload("res://data/items.gd")
 const Drop = preload("res://scripts/drop.gd")
@@ -8,6 +12,7 @@ const PICKUP_RADIUS := 27.0
 var inventories: Dictionary = {}
 var drops: Dictionary = {}
 var next_drop_id := 1
+var attack_ready_at: Dictionary = {}
 var main: Node2D
 
 func _ready() -> void:
@@ -28,6 +33,8 @@ func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Arra
  var previous: int = main.world.block_at(cell)
  if block_id != -1 and (slot < 0 or slot >= Inventory.HOTBAR_COUNT or inventory.block_in_slot(slot) != block_id):
   return false
+ if block_id != -1 and main.world.torches.has(cell):
+  return false
  if not main.world.request_edit(body, cell, block_id, bodies):
   return false
  if block_id == -1:
@@ -36,6 +43,8 @@ func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Arra
  else:
   inventory.take_one(slot)
   inventory_changed.emit(id)
+ terrain_changed.emit(cell, block_id)
+ _check_torch_support()
  return true
 
 func spawn_drop(item_id: String, amount: int, at: Vector2) -> int:
@@ -128,3 +137,113 @@ func _physics_process(delta: float) -> void:
     break
    drop.count = remainder
    drop_changed.emit(id, drop_data(id))
+
+
+func selected_definition(body: CharacterBody2D, slot: int) -> Dictionary:
+ var item_id: String = inventory_for(int(str(body.name))).item_at(slot)
+ return Items.DEFINITIONS.get(item_id, {})
+
+func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
+ var kind: String = selected_definition(body, slot).get("kind", "")
+ if kind == "weapon":
+  return "ЛКМ — удар клинком"
+ if kind == "wall":
+  return main.world.decoration_status(body, cell, "wall", false)
+ if main.world.torches.has(cell):
+  return main.world.decoration_status(body, cell, "torch", false)
+ return main.world.interaction_status(body, cell, false, main.get_node("Players").get_children())
+
+func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float:
+ var definition := selected_definition(body, slot)
+ if definition.get("kind", "") == "wall":
+  return 0.25
+ if main.world.torches.has(cell) and definition.get("kind", "") != "wall":
+  return 0.15
+ var block_id: int = main.world.block_at(cell)
+ if block_id == -1:
+  return 1.0
+ return float(main.world.Blocks.DEFINITIONS[block_id].mine_time) * float(definition.get("mine_factor", 1.0))
+
+func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
+ var definition := selected_definition(body, slot)
+ var kind: String = definition.get("kind", "")
+ if kind in ["wall", "torch"]:
+  return main.world.decoration_status(body, cell, kind, true)
+ if kind == "solid":
+  if main.world.torches.has(cell):
+   return "Сначала сними факел"
+  return main.world.interaction_status(body, cell, true, main.get_node("Players").get_children())
+ return "Этот слот не для строительства"
+
+func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ var definition := selected_definition(body, slot)
+ var kind: String = definition.get("kind", "")
+ if kind == "weapon":
+  return swing(body, slot, main.world.cell_center(cell) - body.position)
+ if kind != "wall" and main.world.torches.has(cell):
+  kind = "torch"
+ if kind == "wall" or (kind == "torch" and main.world.torches.has(cell)):
+  var expected := "Можно снять стену" if kind == "wall" else "Можно снять факел"
+  if primary_status(body, cell, slot) != expected:
+   return false
+  var item_id := "torch"
+  if kind == "wall":
+   item_id = "dirt_wall" if main.world.wall_at(cell) == 1 else "stone_wall"
+  main.world.apply_decoration(kind, cell, -1)
+  decoration_changed.emit(kind, cell, -1)
+  spawn_drop(item_id, 1, main.world.cell_center(cell))
+  _check_torch_support()
+  return true
+ return try_edit(body, cell, -1, main.get_node("Players").get_children())
+
+func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if slot < 0 or slot >= Inventory.HOTBAR_COUNT:
+  return false
+ var definition := selected_definition(body, slot)
+ var kind: String = definition.get("kind", "")
+ if kind == "solid":
+  return try_edit(body, cell, definition.block, main.get_node("Players").get_children(), slot)
+ if kind not in ["wall", "torch"]:
+  return false
+ var expected := "Можно поставить стену" if kind == "wall" else "Можно поставить факел"
+ if placement_status(body, cell, slot) != expected:
+  return false
+ var value: int = int(definition.wall) if kind == "wall" else 1
+ main.world.apply_decoration(kind, cell, value)
+ decoration_changed.emit(kind, cell, value)
+ var id := int(str(body.name))
+ inventory_for(id).take_one(slot)
+ inventory_changed.emit(id)
+ return true
+
+func _check_torch_support() -> void:
+ for cell in main.world.torches.keys():
+  if not main.world.has_support(cell):
+   main.world.apply_decoration("torch", cell, -1)
+   decoration_changed.emit("torch", cell, -1)
+   spawn_drop("torch", 1, main.world.cell_center(cell))
+
+func craft(id: int, recipe_id: String) -> String:
+ var inventory = inventory_for(id)
+ var status: String = inventory.craft_preview(recipe_id).status
+ if status != "Можно создать":
+  return status
+ if not inventory.craft(recipe_id):
+  return "Создать не удалось"
+ inventory_changed.emit(id)
+ var recipe: Dictionary = Recipes.DEFINITIONS[recipe_id]
+ return "Создано: %s ×%d" % [Items.DEFINITIONS[recipe.output].name, recipe.count]
+
+func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
+ var definition := selected_definition(body, slot)
+ if definition.get("kind", "") != "weapon":
+  return false
+ var id := int(str(body.name))
+ var now := Time.get_ticks_msec()
+ if now < int(attack_ready_at.get(id, 0)):
+  return false
+ attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
+ var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
+ body.play_swing(aim)
+ attack_started.emit(id, aim)
+ return true
