@@ -2,6 +2,8 @@ extends CharacterBody2D
 var kind := "ashling"
 var health := 45
 var max_health := 45
+var base_health := 45
+var scaling_players := 1
 var anchor := Vector2.ZERO
 var grace := 0.0
 var hurt_flash := 0.0

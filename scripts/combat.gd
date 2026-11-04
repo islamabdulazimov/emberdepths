@@ -36,16 +36,20 @@ func enemy_speed(kind: String) -> float:
  return float(Rules.ENEMIES[kind].night_speed if is_night() else Rules.ENEMIES[kind].day_speed)
 
 func spawn_entity(kind: String, at: Vector2, anchor: Vector2 = Vector2.ZERO) -> int:
+ if not authoritative() or not Rules.ENEMIES.has(kind):
+  return -1
  var id := next_entity_id
  next_entity_id += 1
- var health: int = Rules.ENEMIES[kind].health
- set_entity(id, {"kind": kind, "position": at, "velocity": Vector2.ZERO, "health": health, "anchor": anchor, "grace": 1.2 if kind == "spirit" else 0.8})
+ var base: int = Rules.ENEMIES[kind].health
+ var players := connected_player_count()
+ var health: int = Rules.scaled_health(base, players)
+ set_entity(id, {"kind": kind, "position": at, "velocity": Vector2.ZERO, "health": health, "base_health": base, "max_health": health, "scaling_players": players, "anchor": anchor, "grace": 1.2 if kind == "spirit" else 0.8})
  entity_changed.emit(id, entity_data(id))
  return id
 
 func entity_data(id: int) -> Dictionary:
  var body = entities[id]
- return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun}
+ return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun}
 
 func set_entity(id: int, data: Dictionary) -> void:
  if data.is_empty():
@@ -59,12 +63,15 @@ func set_entity(id: int, data: Dictionary) -> void:
   var body := CharacterBody2D.new()
   body.set_script(Enemy)
   body.kind = data.kind
-  body.max_health = Rules.ENEMIES[data.kind].health
+  body.max_health = int(data.get("max_health", Rules.ENEMIES[data.kind].health))
   add_child(body)
   entities[id] = body
  var body = entities[id]
  if body.health > int(data.health):
   body.hurt_flash = 0.16
+ body.base_health = int(data.get("base_health", Rules.ENEMIES[data.kind].health))
+ body.scaling_players = int(data.get("scaling_players", 1))
+ body.max_health = int(data.get("max_health", body.base_health))
  body.health = data.health
  body.position = data.position
  body.velocity = data.velocity
@@ -117,7 +124,9 @@ func line_clear(from: Vector2, to: Vector2) -> bool:
  return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 func player_data(body: CharacterBody2D) -> Dictionary:
- return {"health": body.health, "dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining}
+ var state: Dictionary = body.resources.snapshot()
+ state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
+ return state
 
 func apply_player_state(id: int, data: Dictionary) -> void:
  var body = main.get_node("Players").get_node_or_null(str(id))
@@ -128,7 +137,7 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  body.since_hurt = data.get("since_hurt", 0.0)
  body.regen_fraction = data.get("regen_fraction", 0.0)
  body.knockback_remaining = data.get("knockback", 0.0)
- body.health = data.health
+ body.resources.apply(data)
  body.dead = data.dead
  body.unclothed = data.unclothed
  body.hurt_immunity = data.immunity
@@ -187,7 +196,7 @@ func _kill(body: CharacterBody2D) -> void:
 
 func respawn(body: CharacterBody2D) -> void:
  body.dead = false
- body.health = Rules.MAX_HEALTH
+ body.resources.reset_full()
  body.hurt_immunity = Rules.RESPAWN_IMMUNITY
  body.since_hurt = 0.0
  body.regen_fraction = 0.0
@@ -254,7 +263,10 @@ func hit_entity(id: int, damage: int, direction: Vector2) -> bool:
  if not authoritative() or not entities.has(id) or damage <= 0:
   return false
  var enemy = entities[id]
- enemy.health -= 1 if enemy.kind == "spirit" else damage
+ if enemy.kind == "spirit":
+  enemy.health = ceili(enemy.max_health / 2.0) if enemy.health == enemy.max_health else 0
+ else:
+  enemy.health -= damage
  enemy.hurt_flash = 0.16
  enemy.hit_stun = 0.2
  enemy.velocity.x = direction.x * 150
@@ -287,13 +299,11 @@ func _physics_process(delta: float) -> void:
    continue
   alive.append(body)
   body.since_hurt += delta
-  if body.health < Rules.MAX_HEALTH and body.since_hurt >= Rules.REGEN_DELAY:
-   body.regen_fraction += Rules.REGEN_RATE * delta
-   if body.regen_fraction >= 1:
-    var healed := floori(body.regen_fraction)
-    body.regen_fraction -= healed
-    body.health = mini(Rules.MAX_HEALTH, body.health + healed)
-    player_changed.emit(int(str(body.name)), player_data(body))
+  var recovered: bool = body.resources.tick(delta)
+  body.resource_sync = maxf(0, body.resource_sync - delta)
+  if recovered and body.resource_sync <= 0:
+   body.resource_sync = 0.1
+   player_changed.emit(int(str(body.name)), player_data(body))
  for id in entities.keys():
   var enemy = entities[id]
   enemy.grace = maxf(0.0, enemy.grace - delta)
@@ -417,3 +427,32 @@ func _process(delta: float) -> void:
   body.hurt_immunity = maxf(0, body.hurt_immunity - delta)
   if body.dead:
    body.respawn_remaining = maxf(0, body.respawn_remaining - delta)
+
+
+func connected_player_count() -> int:
+ # Registered bodies remain in Players during death/respawn; pending peers
+ # and disconnected/offline profile records are not included.
+ return clampi(main.get_node("Players").get_child_count(), 1, 4)
+
+func heal_player(id: int, amount: int) -> int:
+ if not authoritative(): return 0
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body == null or body.dead: return 0
+ var restored: int = body.resources.heal(amount)
+ if restored > 0: player_changed.emit(id, player_data(body))
+ return restored
+
+func spend_mana(id: int, amount: int) -> bool:
+ if not authoritative(): return false
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body == null or body.dead or not body.resources.spend_mana(amount): return false
+ player_changed.emit(id, player_data(body))
+ return true
+
+func restore_mana(id: int, amount: int) -> int:
+ if not authoritative(): return 0
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body == null or body.dead: return 0
+ var restored: int = body.resources.restore_mana(amount)
+ if restored > 0: player_changed.emit(id, player_data(body))
+ return restored

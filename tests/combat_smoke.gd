@@ -38,7 +38,7 @@ func run() -> void:
  check_result(player.health == 72, "Health does not regenerate during recovery delay")
  for i in range(40):
   combat._physics_process(0.1)
- check_result(player.health > 72 and player.health <= 100, "Safe recovery regenerates health within maximum")
+ check_result(player.health == 72 and combat.heal_player(1, 5) == 5 and player.health == 77, "Health does not auto regenerate and explicit healing restores it")
  combat.world_time = 179.99
  combat._physics_process(0.02)
  check_result(combat.is_night() and combat.enemy_speed("ashling") == 65.0, "Night changes enemy speed")

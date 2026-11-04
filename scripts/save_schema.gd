@@ -42,7 +42,11 @@ static func cell(value: Variant, width: int, depth: int) -> bool:
 static func life(value: Variant, width: int, depth: int) -> bool:
  if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
   return false
- if not integer(value.health, 0, 100) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
+ if not integer(value.get("max_health", 100), 1, 1000000) or not integer(value.health, 0, int(value.get("max_health", 100))) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
+  return false
+ if not integer(value.get("max_mana", 50), 1, 1000000) or not integer(value.get("mana", value.get("max_mana", 50)), 0, int(value.get("max_mana", 50))):
+  return false
+ if not scalar(value.get("max_stamina", 100.0), 1, 1000000) or not scalar(value.get("stamina", value.get("max_stamina", 100.0)), 0, float(value.get("max_stamina", 100.0))) or not scalar(value.get("stamina_delay", 0.0), 0, 10):
   return false
  if not scalar(value.immunity, 0, 10) or not scalar(value.respawn, -1, 10) or not integer(value.revision, 0, 1000000000):
   return false
@@ -102,7 +106,14 @@ static func validate(value: Variant) -> String:
   var entity: Variant = combat.entities[id]
   if not integer(id, 1, int(combat.next_entity) - 1) or not entity is Dictionary or not entity.has_all(["kind", "position", "velocity", "health", "anchor", "grace", "clock", "hit_stun"]):
    return "Неполное существо"
-  if not Rules.ENEMIES.has(entity.kind) or not integer(entity.health, 1, Rules.ENEMIES[entity.kind].health) or not point(entity.position, width, depth) or not point(entity.anchor, width, depth) or not velocity(entity.velocity) or not scalar(entity.grace, 0, 2) or not scalar(entity.clock, 0, 1e12) or not scalar(entity.hit_stun, 0, 1):
+  if not Rules.ENEMIES.has(entity.kind):
+   return "Неизвестное существо"
+  var base: int = entity.get("base_health", Rules.ENEMIES[entity.kind].health)
+  var players: int = entity.get("scaling_players", 1)
+  var maximum: int = entity.get("max_health", base)
+  if base != Rules.ENEMIES[entity.kind].health or not integer(players, 1, 4) or maximum != Rules.scaled_health(base, players):
+   return "Неверное масштабирование здоровья"
+  if not integer(entity.health, 1, maximum) or not point(entity.position, width, depth) or not point(entity.anchor, width, depth) or not velocity(entity.velocity) or not scalar(entity.grace, 0, 2) or not scalar(entity.clock, 0, 1e12) or not scalar(entity.hit_stun, 0, 1):
    return "Неверное существо"
   if entity.kind == "spirit" and entity.position.distance_to(entity.anchor) > 160.1:
    return "Дух вне радиуса сундука"

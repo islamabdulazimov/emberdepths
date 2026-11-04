@@ -7,7 +7,7 @@ const DEFINITIONS := {
  "turf": {"name": "Дёрн", "kind": "solid", "block": 0, "atlas": Vector2i(0, 0)},
  "emberstone": {"name": "Искрокамень", "kind": "solid", "block": 3, "icon": "res://assets/icons/emberstone.svg"},
  "stone_pick": {"name": "Каменная кирка", "kind": "tool", "stack": 1, "mine_factor": 0.5, "icon": "res://assets/icons/pick.svg"},
- "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": 0.45, "damage": 18, "reach": 32.0, "icon": "res://assets/icons/blade.svg"},
+ "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": 0.45, "stamina_cost": 18.0, "damage": 18, "reach": 32.0, "icon": "res://assets/icons/blade.svg"},
  "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
  "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},
  "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},

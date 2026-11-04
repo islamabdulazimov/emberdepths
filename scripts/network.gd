@@ -424,8 +424,11 @@ func _player_changed(id: int, data: Dictionary) -> void:
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_life(id: int, data: Dictionary) -> void:
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ var previous := int(body.life_revision) if body != null else -1
  main.combat.apply_player_state(id, data)
- targets.erase(id)
+ if previous != int(data.revision):
+  targets.erase(id)
 
 
 func _send(peer_id: int, method: String, arguments: Array) -> void:

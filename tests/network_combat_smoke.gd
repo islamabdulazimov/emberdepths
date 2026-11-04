@@ -160,7 +160,7 @@ func run() -> void:
  check_result(saw_dead and saw_respawn, "Death and respawn synchronize to " + role)
  check_result(saw_chest and saw_ghost and saw_finished, "Chest recovery and spirit defeat complete on " + role)
  if role == "host":
-  check_result(enemy_damage.has(27) and enemy_damage.has(9), "Remote weapon deals server-validated damage")
+  check_result(enemy_damage.has(39) and enemy_damage.has(21), "Remote weapon deals server-validated damage")
   check_result(ghost_health.has(2) and ghost_health.has(1), "Network spirit takes two distinct hits")
   check_result(main.player.health == 100, "Fighter does not damage cooperative host")
  if role == "fighter":

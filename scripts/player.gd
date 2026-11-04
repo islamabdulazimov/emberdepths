@@ -12,7 +12,11 @@ var swing_remaining := 0.0
 var swing_direction := Vector2.RIGHT
 var swing_unarmed := false
 var profile_id := ""
-var health := 100
+var resources = preload("res://scripts/player_resources.gd").new()
+var resource_sync := 0.0
+var health: int:
+ get: return resources.health
+ set(value): resources.health = clampi(value, 0, resources.max_health)
 var dead := false
 var unclothed := false
 var hurt_immunity := 0.0

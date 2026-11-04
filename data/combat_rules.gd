@@ -14,3 +14,14 @@ const ENEMIES := {
  "ashling": {"name": "Пепельник", "health": 45, "day_speed": 34.0, "night_speed": 65.0, "day_damage": 14, "night_damage": 22, "loot": "emberstone"},
  "spirit": {"name": "Дух сундука", "health": 2, "day_speed": 70.0, "night_speed": 70.0, "day_damage": 12, "night_damage": 12, "loot": ""},
 }
+
+# Shared by ordinary enemies and bosses. Applied to ORIGINAL health once.
+const HEALTH_PER_EXTRA_PLAYER := 0.25
+const MAX_MANA := 50
+const MAX_STAMINA := 100.0
+const STAMINA_REGEN_DELAY := 0.8
+const STAMINA_REGEN_RATE := 28.0
+const PUNCH_STAMINA_COST := 8.0
+
+static func scaled_health(base_health: int, players: int) -> int:
+ return ceili(base_health * (1.0 + HEALTH_PER_EXTRA_PLAYER * (clampi(players, 1, 4) - 1)))

@@ -48,6 +48,12 @@ func _ready() -> void:
  inventory_ui = CanvasLayer.new()
  inventory_ui.set_script(preload("res://scripts/inventory_ui.gd"))
  add_child(inventory_ui)
+ var resources_ui := Control.new()
+ resources_ui.name = "PlayerResources"
+ resources_ui.set_script(preload("res://scripts/player_resources_ui.gd"))
+ resources_ui.main = self
+ resources_ui.position = Vector2(14, 14)
+ $HUD.add_child(resources_ui)
  _create_network_ui()
  saves.startup()
  get_tree().auto_accept_quit = false

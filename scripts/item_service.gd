@@ -273,12 +273,15 @@ func craft(id: int, recipe_id: String) -> String:
 
 func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
  var definition := selected_definition(body, slot)
- if body.dead or definition.get("kind", "") != "weapon":
+ if not main.combat.authoritative() or body.dead or definition.get("kind", "") != "weapon":
   return false
  var id := int(str(body.name))
  var now := Time.get_ticks_msec()
  if now < int(attack_ready_at.get(id, 0)):
   return false
+ if not body.resources.spend_stamina(float(definition.stamina_cost)):
+  return false
+ main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
  attack_profiles[id] = {"damage": definition.damage, "reach": definition.reach, "unarmed": false}
@@ -288,12 +291,15 @@ func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
 
 
 func punch(body: CharacterBody2D, direction: Vector2) -> bool:
- if body.dead:
+ if not main.combat.authoritative() or body.dead:
   return false
  var id := int(str(body.name))
  var now := Time.get_ticks_msec()
  if now < int(attack_ready_at.get(id, 0)):
   return false
+ if not body.resources.spend_stamina(main.combat.Rules.PUNCH_STAMINA_COST):
+  return false
+ main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + 550
  attack_profiles[id] = {"damage": 6, "reach": 22.0, "unarmed": true}
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
