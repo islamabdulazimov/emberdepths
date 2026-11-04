@@ -54,3 +54,13 @@ owner_output = holder_log_path.read_text()
 print(owner_output)
 if "ERROR:" in owner_output:
     sys.exit(1)
+
+# Actual menu round trip: normal world -> ephemeral arena -> original save.
+result = subprocess.run(["godot", "--headless", "--path", str(root),
+                         "--script", "tests/arena_transition_smoke.gd", "--",
+                         "--with-save", "--profile=arena_transition"],
+                        env=environment, capture_output=True, text=True, timeout=30)
+output = result.stdout + result.stderr
+print(output)
+if result.returncode or "ERROR:" in output:
+    sys.exit(1)

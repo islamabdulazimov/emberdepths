@@ -1,0 +1,9 @@
+extends RefCounted
+# Initial tuning for the combat prototype; seconds, pixels and stamina points.
+const BLADE := {"windup":0.12,"active":0.10,"recovery":0.25,"damage":24,"poise":18,"reach":32.0,"arc_dot":0.45,"cost":18.0}
+const ROLL := {"duration":0.44,"invulnerable_from":0.05,"invulnerable_to":0.27,"speed":225.0,"cost":24.0}
+const PARRY := {"duration":0.58,"window_from":0.04,"window_to":0.18,"success_recovery":0.18,"cost":14.0,"boss_poise":45,"enemy_stagger":1.0}
+const ASHLING := {"windup":0.48,"active":0.12,"recovery":0.68,"reach":36.0,"stop_distance":28.0}
+const HURT_RECOVERY := 0.18
+const SUPER_HIT_DELAY := 0.04
+const SUPER_IMPACT := 0.12

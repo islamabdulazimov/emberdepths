@@ -47,6 +47,7 @@ func run() -> void:
   check_result(main.network.host_game() == OK, "Combat host opens server")
  else:
   main.network.join_game("127.0.0.1")
+ var last_tick := Time.get_ticks_msec()
  var started := Time.get_ticks_msec()
  var enemy_id := -1
  var forced_death := false
@@ -73,6 +74,11 @@ func run() -> void:
    if actor.kind == "spirit":
     saw_ghost = true
   if role == "host":
+   var now := Time.get_ticks_msec()
+   var delta := minf(0.05,float(now-last_tick)/1000)
+   last_tick = now
+   for body in main.get_node("Players").get_children():
+    if not body.dead: main.combat.tick_fighter(body,delta)
    if not fighter_ids.is_empty():
     var fighter = main.get_node("Players").get_node_or_null(str(fighter_ids[0]))
     if fighter != null:
@@ -160,7 +166,7 @@ func run() -> void:
  check_result(saw_dead and saw_respawn, "Death and respawn synchronize to " + role)
  check_result(saw_chest and saw_ghost and saw_finished, "Chest recovery and spirit defeat complete on " + role)
  if role == "host":
-  check_result(enemy_damage.has(39) and enemy_damage.has(21), "Remote weapon deals server-validated damage")
+  check_result(enemy_damage.has(33) and enemy_damage.has(9), "Remote weapon deals server-validated damage")
   check_result(ghost_health.has(3) and ghost_health.has(2), "Network spirit takes two distinct hits")
   check_result(main.player.health == 100, "Fighter does not damage cooperative host")
  if role == "fighter":

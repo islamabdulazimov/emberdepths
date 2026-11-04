@@ -44,11 +44,14 @@ func _ready() -> void:
  multiplayer.server_disconnected.connect(func(): stop(rejection if rejection != "" else "Хост отключился. Возврат в свой мир"))
 
 func host_game(port: int = PORT) -> Error:
+ if main.has_meta("combat_test"): return ERR_UNAVAILABLE
  if main.saves.identity_error != "":
   status = main.saves.identity_error
   return ERR_CANT_CREATE
  if active or stopping:
   return ERR_ALREADY_IN_USE
+ # All RPCs already go through the host; no automatic peer-to-peer relay is needed.
+ if multiplayer is SceneMultiplayer: multiplayer.server_relay = false
  var peer := ENetMultiplayerPeer.new()
  var err := peer.create_server(port, MAX_PLAYERS - 1)
  if err != OK:
@@ -61,6 +64,7 @@ func host_game(port: int = PORT) -> Error:
  return OK
 
 func join_game(address: String, port: int = PORT) -> Error:
+ if main.has_meta("combat_test"): return ERR_UNAVAILABLE
  if active or stopping:
   return ERR_ALREADY_IN_USE
  if address.strip_edges().is_empty():
@@ -463,6 +467,16 @@ func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
 func _attack_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server():
   _broadcast("sync_attack", [id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false))])
+
+func defense_local(action: String) -> void:
+ var axis := Input.get_axis("move_left","move_right")
+ if not active or (connected and multiplayer.is_server()): main.combat.start_defense(int(str(main.player.name)),action,axis)
+ elif connected: request_defense.rpc_id(1,action,axis)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func request_defense(action: String, axis: float) -> void:
+ var id := multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id): main.combat.start_defense(id,action,axis)
 
 func _work_started(id: int, direction: Vector2, kind: String) -> void:
  if active and connected and multiplayer.is_server(): _broadcast("sync_work",[id,direction,kind])

@@ -18,6 +18,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
  if event is InputEventKey and event.pressed and not event.echo:
   if event.physical_keycode == KEY_ESCAPE:
    get_parent().inventory_ui.toggle()
+  elif event.physical_keycode in [KEY_SHIFT,KEY_F] and not get_parent().inventory_ui.opened:
+   network.defense_local("roll" if event.physical_keycode == KEY_SHIFT else "parry")
   elif event.physical_keycode >= KEY_1 and event.physical_keycode <= KEY_9:
    selected_slot = event.physical_keycode - KEY_1
   elif event.physical_keycode == KEY_0:
@@ -39,7 +41,7 @@ func _unhandled_input(event: InputEvent) -> void:
     network.open_storage_local(cell,selected_slot)
 
 func can_use_mouse() -> bool:
- return is_instance_valid(player) and not player.dead and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
+ return is_instance_valid(player) and not player.dead and player.fighter.mode == "idle" and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
 
 func _process(delta: float) -> void:
  if not is_instance_valid(player):
@@ -116,7 +118,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
+ label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо · Esc — инвентарь · Shift — перекат · F — парирование\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
  queue_redraw()
 
 func _draw() -> void:

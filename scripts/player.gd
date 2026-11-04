@@ -1,4 +1,6 @@
 extends CharacterBody2D
+var fighter = preload("res://scripts/fighter_state.gd").new()
+const Battle = preload("res://data/battle.gd")
 const Art = preload("res://scripts/visuals/art_direction.gd")
 const Action = preload("res://scripts/visuals/action_pose.gd")
 const Pose = preload("res://scripts/visuals/player_pose.gd")
@@ -65,14 +67,19 @@ func _physics_process(delta: float) -> void:
   velocity = Vector2.ZERO
   return
  knockback_remaining = maxf(0.0, knockback_remaining - delta)
- if knockback_remaining <= 0:
-  velocity.x = move_toward(velocity.x, move_command * SPEED, 1000.0 * delta)
+ if fighter.mode == "roll":
+  velocity.x = fighter.direction.x*float(Battle.ROLL.speed)
+ elif fighter.mode in ["parry","parry_success"]:
+  velocity.x = move_toward(velocity.x,0,1600*delta)
+ elif knockback_remaining <= 0:
+  var movement_scale := 0.45 if fighter.mode == "attack" else 1.0
+  velocity.x = move_toward(velocity.x,move_command*SPEED*movement_scale,1000*delta)
  if not is_on_floor():
   velocity.y = minf(velocity.y + GRAVITY * delta, 600.0)
- if jump_command and is_on_floor():
+ if jump_command and is_on_floor() and fighter.mode == "idle":
   velocity.y = JUMP_SPEED
  jump_command = false
- if move_command != 0:
+ if move_command != 0 and fighter.mode == "idle":
   facing = 1 if move_command > 0 else -1
  move_and_slide()
  elapsed += delta
@@ -182,18 +189,43 @@ func _draw() -> void:
  var action: Dictionary = {}
  var action_kind := ""
  var action_progress := 0.0
- if swing_remaining > 0 or work_remaining > 0:
+ if fighter.mode == "attack" or swing_remaining > 0 or work_remaining > 0:
   var fighting := swing_remaining > 0
   action_progress = 1.0-swing_remaining/0.24 if fighting else 1.0-work_remaining/0.30
+  if fighter.mode == "attack":
+   fighting = true
+   var t: float = fighter.elapsed
+   if t < Battle.BLADE.windup: action_progress = t/Battle.BLADE.windup*0.40
+   elif t < Battle.BLADE.windup+Battle.BLADE.active: action_progress = 0.40+(t-Battle.BLADE.windup)/Battle.BLADE.active*0.25
+   else: action_progress = 0.65+(t-Battle.BLADE.windup-Battle.BLADE.active)/Battle.BLADE.recovery*0.35
   action_kind = ("punch" if swing_unarmed else ("axe" if swing_tool else "blade")) if fighting else work_kind
   var direction: Vector2 = (swing_direction if fighting else work_direction)*Vector2(visual_facing,1)
   action = Action.sample(action_kind,action_progress,direction,pose.front_hand)
 
  var scale_value: Vector2 = pose.scale
+ if fighter.mode == "roll":
+  pose = pose.duplicate()
+  pose.scale = Vector2(1.08,0.72)
+  pose.offset = Vector2(0,-1)
+  pose.head = Vector2(pose.head)+Vector2(1,4)
+  pose.front_foot = Vector2(5,7)
+  pose.back_foot = Vector2(-4,7)
+  pose.front_hand = Vector2(6,-5)
+ var guard_weight := 0.0
+ if fighter.mode in ["parry","parry_success"]:
+  guard_weight = 1-smoothstep(0,fighter.duration,fighter.elapsed) if fighter.mode == "parry_success" else smoothstep(0,Battle.PARRY.window_from,fighter.elapsed)*(1-smoothstep(Battle.PARRY.window_to,fighter.duration,fighter.elapsed))
+  pose = pose.duplicate()
+  pose.front_hand = Vector2(pose.front_hand).lerp(Vector2(10,-9),guard_weight)
+  pose.back_hand = Vector2(pose.back_hand).lerp(Vector2(-4,-7),guard_weight)
  var lean: float = float(pose.lean)+float(action.get("lean",0))*visual_facing
  var offset: Vector2 = Vector2(pose.offset)+Vector2(action.get("offset",Vector2.ZERO))*Vector2(visual_facing,1)
  var transform := Transform2D(lean,scale_value*Vector2(visual_facing*visual_turn,1),0,Vector2.ZERO)
  transform.origin = offset+Vector2(0,10)-transform*Vector2(0,10)
+ if fighter.mode == "roll":
+  var pivot := Vector2(0,-3)
+  var turn := Transform2D(fighter.elapsed/Battle.ROLL.duration*TAU*signf(fighter.direction.x),Vector2.ZERO)
+  turn.origin = pivot-turn*pivot
+  transform = transform*turn
  draw_set_transform_matrix(transform)
  if not unclothed:
   # Two scarf tails move at different phases; only the artwork moves.
@@ -249,7 +281,7 @@ func _draw() -> void:
   else:
    var along := Vector2.from_angle(angle)
    var normal := along.orthogonal()
-   var tip := hand+along*15
+   var tip := hand+along*(20 if kind == "blade" else 15)
    if kind == "punch" and presence > 0.1:
     draw_rect(Rect2(hand.round()-Vector2(2,2),Vector2(5,4)),skin.lightened(0.1))
    elif kind != "punch" and presence > 0.03:
@@ -272,8 +304,17 @@ func _draw() -> void:
      draw_line((hand+along*4-normal).round(),(tip+along).round(),Color(Art.IVORY,tool_alpha),1)
      draw_line((hand-normal*3).round(),(hand+normal*3).round(),Color(Art.COPPER,tool_alpha),2)
  else:
-  _draw_limb(Vector2(4,-5),Vector2(6,-2),hand,skin,3)
+  _draw_limb(Vector2(4,-5),Vector2(6,-2).lerp(Vector2(8,-9),guard_weight),hand,skin,3)
  draw_set_transform_matrix(Transform2D.IDENTITY)
+ if fighter.roll_invulnerable():
+  for side in [-1,1]: draw_line(Vector2(side*12,-8),Vector2(side*15,-3),Color(0.53,0.67,0.66,0.65),2)
+ if fighter.mode in ["parry","parry_success"]:
+  var color := Art.IVORY if fighter.parry_open() or fighter.mode == "parry_success" else Art.SLATE
+  color.a = guard_weight
+  var at := Vector2(facing*12,-9)
+  draw_line(at+Vector2(-3,-6),at+Vector2(4,0),color,2)
+  draw_line(at+Vector2(4,0),at+Vector2(-3,6),color,2)
+  if fighter.parry_open(): draw_rect(Rect2(at+Vector2(6,-1),Vector2(2,2)),Art.EMBER)
  if medicine_progress > 0:
   draw_rect(Rect2(-12,-29,24,3),Art.INK)
   draw_rect(Rect2(-12,-29,24*medicine_progress,3),Art.EMBER)

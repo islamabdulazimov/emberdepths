@@ -129,6 +129,7 @@ func block_at(cell: Vector2i) -> int:
 func interaction_status(actor: CharacterBody2D, cell: Vector2i, placing: bool, bodies: Array) -> String:
  if cell.x < 0 or cell.x >= world_width or cell.y < 0 or cell.y >= world_depth:
   return "За границей мира"
+ if combat_edit_locked(cell): return "Арена закрыта для строительства и добычи"
  if actor.global_position.distance_to(cell_center(cell)) > REACH:
   return "Слишком далеко"
  if not placing:
@@ -215,6 +216,7 @@ func has_support(cell: Vector2i) -> bool:
  return false
 
 func decoration_status(actor: CharacterBody2D, cell: Vector2i, kind: String, placing: bool) -> String:
+ if combat_edit_locked(cell): return "Арена закрыта для строительства и добычи"
  if not in_reach(actor, cell):
   return "Вне досягаемости"
  if kind == "torch":
@@ -303,6 +305,8 @@ func area_occupied(area: Rect2, bodies: Array) -> bool:
  return false
 
 func door_placement_status(actor: CharacterBody2D, anchor: Vector2i, bodies: Array) -> String:
+ for part in Structures.door_cells(anchor):
+  if combat_edit_locked(part): return "Арена закрыта для строительства и добычи"
  if doors.size() >= Structures.MAX_DOORS: return "Слишком много дверей"
  if anchor.y < Structures.DOOR_HEIGHT-1 or anchor.y >= world_depth-1 or anchor.x < 0 or anchor.x >= world_width: return "За границей мира"
  for cell in Structures.door_cells(anchor):
@@ -344,3 +348,7 @@ func restore_doors(data: Dictionary) -> void:
 func storage_at(cell: Vector2i) -> Node2D:
  var service = get_parent().get("storage")
  return service.at_cell(cell) if is_instance_valid(service) else null
+
+func combat_edit_locked(cell: Vector2i) -> bool:
+ var zone = get_parent().get("combat_zone")
+ return is_instance_valid(zone) and zone.blocks_edit(cell)

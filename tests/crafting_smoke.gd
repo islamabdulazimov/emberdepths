@@ -58,6 +58,7 @@ func run() -> void:
  var previous: int = world.block_at(ground)
  check_result(service.use_primary(player, ground, 1) and player.swing_remaining > 0.0 and world.block_at(ground) == previous, "Weapon swings without mining targeted terrain")
  check_result(not service.use_primary(player, ground, 1), "Weapon cooldown rejects immediate repeated swing")
+ main.combat.tick_fighter(player,0.5)
  bag.add("dirt_wall", 2)
  var cell := Vector2i(97, 21)
  check_result(service.place_selected(player, cell, 2) and world.wall_at(cell) == 1 and not world.walls.collision_enabled and world.block_at(cell) == -1, "Wall occupies separate noncolliding layer")

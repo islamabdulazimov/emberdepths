@@ -18,6 +18,7 @@ func run() -> void:
  main.player.health = 1000
  main.encounter.pending = true
  check_result(main.encounter.try_spawn(), "Attack test creates boss on free terrain")
+ main.combat_zone.unlock() # Geometry unit fixture deliberately repositions bodies beyond a live arena.
  var actor = main.encounter.actor
  actor.set_physics_process(false)
  main.encounter.enabled = false
@@ -76,7 +77,7 @@ func run() -> void:
  var saw_impact := false
  for i in range(180):
   await physics_frame
-  if actor.phase == "super_impact":
+  if actor.phase == "super_impact" and actor.impact_emitted:
    saw_impact = true
    break
  actor.set_physics_process(false)

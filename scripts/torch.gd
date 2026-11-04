@@ -1,6 +1,7 @@
 extends Node2D
 static var light_texture: Texture2D
 var clock := 0.0
+var base_energy := 1.35
 var light: PointLight2D
 
 func _ready() -> void:
@@ -16,12 +17,12 @@ func _ready() -> void:
  light.texture = light_texture
  light.texture_scale = 1.5
  light.color = Color("ffcf88")
- light.energy = 1.35
+ light.energy = base_energy
  add_child(light)
  z_index = 1
 func _process(delta: float) -> void:
  clock += delta
- light.energy = 1.35+sin(clock*5.1)*0.035+sin(clock*11.3)*0.025
+ light.energy = base_energy+sin(clock*5.1)*0.035+sin(clock*11.3)*0.025
  queue_redraw()
 func _draw() -> void:
  var frame := floori(clock*9)

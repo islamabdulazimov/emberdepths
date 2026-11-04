@@ -8,6 +8,7 @@ signal chop_started(id: int, direction: Vector2)
 signal tree_felled(index: int, direction: int)
 signal inventory_changed(id: int)
 signal drop_changed(id: int, data: Dictionary)
+const Battle = preload("res://data/battle.gd")
 const Recipes = preload("res://data/recipes.gd")
 const Inventory = preload("res://scripts/inventory.gd")
 const Items = preload("res://data/items.gd")
@@ -166,12 +167,13 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  if body.dead:
   return "Вы погибли"
  if kind == "weapon":
-  return "Недостаточно выносливости" if body.resources.stamina < float(selected_definition(body, slot).stamina_cost) else "ЛКМ — удар клинком"
+  return "Недостаточно выносливости" if body.resources.stamina < float(selected_definition(body, slot).stamina_cost) else "ЛКМ — клинок · дальность 2 блока"
  if kind == "consumable":
   if body.health >= body.resources.max_health: return "Здоровье полное"
   if body.medicine_cooldown > 0: return "Бальзам: ожидание %.1f с" % body.medicine_cooldown
   if body.swing_remaining > 0: return "Дождись завершения удара"
   return "Можно применить бальзам · удерживай ЛКМ"
+ if main.world.combat_edit_locked(cell) and main.combat.chest_at(cell) == -1: return "Арена закрыта для строительства и добычи"
  if kind == "axe":
   if main.world.tree_at(cell) == -1: return "Наведи топор на ствол дерева"
   if not main.world.in_reach(body,cell): return "Дерево слишком далеко"
@@ -180,6 +182,8 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
   return "Можно рубить дерево"
  if kind != "wall" and main.world.door_at(cell) != null:
   var door = main.world.door_at(cell)
+  for part in main.world.Structures.door_cells(door.anchor):
+   if main.world.combat_edit_locked(part): return "Арена закрыта для строительства и добычи"
   var excluded: Array[RID] = [door.get_rid()]
   if not main.world.in_reach(body,cell): return "Дверь слишком далеко"
   if not main.combat.line_clear(body.position+Vector2(0,-5),main.world.cell_center(cell),excluded): return "Дверь за преградой"
@@ -246,13 +250,14 @@ func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> Strin
  return "Этот слот не для строительства"
 
 func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
- if body.dead:
+ if body.dead or body.fighter.mode != "idle":
   return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
  if kind == "weapon":
   return swing(body, slot, main.world.cell_center(cell) - body.position)
  if kind == "consumable": return finish_medicine(body,slot)
+ if main.world.combat_edit_locked(cell) and main.combat.chest_at(cell) == -1: return false
  if kind == "axe": return chop_tree(body, cell, slot)
  if kind != "wall" and main.world.door_at(cell) != null:
   return remove_door(body,cell,slot)
@@ -288,6 +293,9 @@ func cancel_medicine(body: CharacterBody2D, interrupted: bool = false, notify: b
 
 # Both solo input and host commands use this path. Clients never supply delta.
 func medicine_step(body: CharacterBody2D, slot: int, delta: float) -> bool:
+ if body.fighter.mode != "idle":
+  cancel_medicine(body)
+  return false
  if not main.combat.authoritative(): return false
  if slot < 0 or slot >= Inventory.HOTBAR_COUNT or selected_definition(body,slot).get("kind","") != "consumable" or not primary_status(body,Vector2i.ZERO,slot).begins_with("Можно применить"):
   cancel_medicine(body)
@@ -349,7 +357,7 @@ func chop_tree(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  return true
 
 func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
- if body.dead or slot < 0 or slot >= Inventory.HOTBAR_COUNT:
+ if body.dead or body.fighter.mode != "idle" or slot < 0 or slot >= Inventory.HOTBAR_COUNT:
   return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
@@ -412,6 +420,7 @@ func toggle_door(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  return true
 
 func remove_door(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if main.world.combat_edit_locked(cell): return false
  if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно снять дверь": return false
  var anchor: Vector2i = main.world.door_at(cell).anchor
  main.world.apply_door(anchor,-1)
@@ -450,25 +459,25 @@ func craft(id: int, recipe_id: String) -> String:
 
 func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
  var definition := selected_definition(body, slot)
- if not main.combat.authoritative() or body.dead or definition.get("kind", "") != "weapon":
+ if not main.combat.authoritative() or body.dead or body.fighter.mode != "idle" or definition.get("kind", "") != "weapon":
   return false
  var id := int(str(body.name))
  var now := Time.get_ticks_msec()
- if now < int(attack_ready_at.get(id, 0)):
-  return false
  if not body.resources.spend_stamina(float(definition.stamina_cost)):
   return false
  main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
- attack_profiles[id] = {"damage": definition.damage, "poise": definition.poise_damage, "reach": definition.reach, "unarmed": false}
+ attack_profiles[id] = {"damage": Battle.BLADE.damage, "poise": Battle.BLADE.poise, "reach": Battle.BLADE.reach, "arc_dot":Battle.BLADE.arc_dot, "unarmed": false}
+ body.fighter.begin("attack",aim,Battle.BLADE.windup+Battle.BLADE.active+Battle.BLADE.recovery,attack_profiles[id])
  body.play_swing(aim)
+ main.combat.player_changed.emit(id,main.combat.player_data(body))
  attack_started.emit(id, aim)
  return true
 
 
 func punch(body: CharacterBody2D, direction: Vector2) -> bool:
- if not main.combat.authoritative() or body.dead:
+ if not main.combat.authoritative() or body.dead or body.fighter.mode != "idle":
   return false
  var id := int(str(body.name))
  var now := Time.get_ticks_msec()

@@ -73,15 +73,20 @@ func run() -> void:
  combat.world_time = 0
  enemy_id = combat.spawn_entity("ashling", original)
  combat.entities[enemy_id].grace = 0
- combat._physics_process(0.02)
- check_result(player.health == 86, "Day enemy contact uses day damage")
+ var ash = combat.entities[enemy_id]
+ ash.step_attack(0,player,combat)
+ ash.step_attack(0.49,player,combat)
+ ash.step_attack(0.01,player,combat)
+ check_result(player.health == 86, "Day enemy active attack uses day damage")
  combat._physics_process(0.02)
  check_result(player.health == 86, "Repeated contact respects player immunity")
  player.health = 100
  player.hurt_immunity = 0
  combat.world_time = 180
- combat._physics_process(0.02)
- check_result(player.health == 78, "Night contact increases damage")
+ ash.night = true
+ ash.change_attack("active")
+ ash.step_attack(0.01,player,combat)
+ check_result(player.health == 78, "Night active attack increases damage")
  clear_enemies(combat)
  player.health = 100
  player.hurt_immunity = 100
@@ -92,25 +97,33 @@ func run() -> void:
  main.world.solid.update_internals()
  for i in range(2):
   await physics_frame
- check_result(items.swing(player, 0, Vector2.RIGHT) and combat.entities[enemy_id].health == 45, "Terrain blocks melee damage")
+ player.fighter.reset()
+ check_result(items.swing(player, 0, Vector2.RIGHT),"Blade begins beside an intervening block")
+ combat.tick_fighter(player,0.13)
+ check_result(combat.entities[enemy_id].health == 45,"Terrain blocks active melee damage")
+ combat.tick_fighter(player,0.5)
  main.world.apply_edit(Vector2i(97, 21), -1)
  main.world.solid.update_internals()
  for i in range(2):
   await physics_frame
  items.attack_ready_at[1] = 0
  items.swing(player, 0, Vector2.LEFT)
+ combat.tick_fighter(player,0.13)
  check_result(combat.entities[enemy_id].health == 45, "Melee cannot hit behind attack direction")
+ combat.tick_fighter(player,0.5)
  items.attack_ready_at[1] = 0
  items.swing(player, 0, Vector2.RIGHT)
- check_result(combat.entities[enemy_id].health == 27, "Selected blade deals data-defined damage")
- check_result(not items.swing(player, 0, Vector2.RIGHT) and combat.entities[enemy_id].health == 27, "Swing cooldown also limits damage")
+ combat.tick_fighter(player,0.13)
+ check_result(combat.entities[enemy_id].health == 21, "Selected blade deals data-defined damage")
+ check_result(not items.swing(player, 0, Vector2.RIGHT) and combat.entities[enemy_id].health == 21, "Swing cooldown also limits damage")
  main.add_player(2, original + Vector2(8, 0))
  main.get_node("Players/2").set_physics_process(false)
+ combat.tick_fighter(player,0.5)
  items.attack_ready_at[1] = 0
  items.swing(player, 0, Vector2.RIGHT)
- items.attack_ready_at[1] = 0
- items.swing(player, 0, Vector2.RIGHT)
- check_result(not combat.entities.has(enemy_id), "Three blade strikes defeat normal enemy")
+ combat.tick_fighter(player,0.13)
+ combat.tick_fighter(player,0.5)
+ check_result(not combat.entities.has(enemy_id), "Two blade strikes defeat normal enemy")
  check_result(main.get_node("Players/2").health == 100, "Cooperative melee has no friendly fire")
  main.remove_player(2)
  var loot := 0
@@ -173,6 +186,7 @@ func run() -> void:
  check_result(player.health == 100, "Newborn spirit gives time to recover equipment")
  combat._physics_process(1.2)
  check_result(player.health == 88, "Spirit contact damages after grace period")
+ combat._physics_process(0.2) # Finish hit recovery before the unarmed counterattack.
  clear_enemies(combat)
  # The first chest is gone; punch target uses an adjacent empty tile.
  spirit_id = combat.spawn_entity("spirit", original + Vector2(20, 0), original)

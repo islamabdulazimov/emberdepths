@@ -1,4 +1,5 @@
 extends CharacterBody2D
+const Battle = preload("res://data/battle.gd")
 const Pose = preload("res://scripts/visuals/andrew_pose.gd")
 var visual_clock := 0.0
 var visual_pose: Dictionary = {}
@@ -110,7 +111,7 @@ func _damage_players(action: String) -> void:
  var origin := position + Vector2(0, -24)
  if action == "super": origin = locked_target + Vector2(0, -8)
  for player in encounter.alive_players():
-  if not state.active: break
+  if not state.active or phase != {"uppercut":"uppercut_active","spin":"spin_active","super":"super_impact"}[action]: break
   var id := int(str(player.name))
   if hit_targets.has(id): continue
   var collider: CollisionShape2D = player.get_node("Collision")
@@ -123,9 +124,21 @@ func _damage_players(action: String) -> void:
    inside = attack_rect(action).intersects(area)
   if not inside or not encounter.main.combat.line_clear(origin, player.position + Vector2(0, -4)): continue
   var amount: int = definition[action + "_damage"]
-  if encounter.main.combat.damage_player(id, amount, origin):
-   hit_targets[id] = true
-   if action == "uppercut" and not player.dead: player.velocity.y = -220
+  var result: String = encounter.main.combat.receive_attack(id,amount,origin,self,true,action == "super")
+  if result != "miss": hit_targets[id] = true
+  if result == "hit" and action == "uppercut" and not player.dead: player.velocity.y = -220
+
+func receive_parry() -> void:
+ if not encounter.authoritative() or not state.active or phase == "stunned": return
+ state.poise = maxi(0,state.poise-int(Battle.PARRY.boss_poise))
+ velocity.x = 0
+ if state.poise == 0:
+  velocity = Vector2.ZERO
+  enter_phase("stunned",definition.stun)
+ elif phase == "uppercut_active": enter_phase("uppercut_recovery",definition.uppercut_recovery)
+ elif phase == "spin_active": enter_phase("spin_recovery",definition.spin_recovery)
+ elif phase == "super_impact": enter_phase("super_recovery",definition.super_recovery)
+ encounter.publish()
 
 func _choose_attack(target: CharacterBody2D) -> void:
  var distance := position.distance_to(target.position)
@@ -206,6 +219,9 @@ func _physics_process(delta: float) -> void:
    pass
   "super_impact":
    velocity.x = 0
+   if not impact_emitted and phase_elapsed >= Battle.SUPER_HIT_DELAY:
+    impact_emitted = true
+    _damage_players("super")
    if phase_elapsed >= phase_duration: enter_phase("super_recovery", definition.super_recovery)
   "uppercut_recovery", "spin_recovery", "super_recovery":
    velocity.x = 0
@@ -216,16 +232,17 @@ func _physics_process(delta: float) -> void:
  velocity.y = minf(velocity.y + float(definition.gravity) * delta, 650)
  last_position = position
  move_and_slide()
- position.x = clampf(position.x, 20, encounter.main.world.world_width * 16 - 20)
+ if encounter.main.combat_zone.active:
+  var zone: Rect2i = encounter.main.combat_zone.bounds
+  position.x = clampf(position.x,zone.position.x*16+20,zone.end.x*16-20)
+ else: position.x = clampf(position.x,20,encounter.main.world.world_width*16-20)
  if phase == "super_flight":
   if not is_on_floor(): flight_started = true
   if is_on_floor() and (flight_started or phase_elapsed > 0.2):
    var landing := locked_target
    if position.distance_to(landing) <= 14:
-    enter_phase("super_impact", 0.12)
+    enter_phase("super_impact",Battle.SUPER_IMPACT)
     locked_target = landing
-    _damage_players("super")
-    impact_emitted = true
     encounter.publish()
    else:
     enter_phase("super_recovery", definition.super_recovery)
@@ -271,6 +288,8 @@ func _draw() -> void:
   draw_rect(zone, Color(1,0.12,0.13,0.2))
   draw_rect(zone, Color("ff6166"), false, 2)
   draw_line(locked_target - global_position - Vector2(float(definition.super_radius), 0), locked_target - global_position + Vector2(float(definition.super_radius), 0), Color("ff5158"), 3)
+ if phase == "super_impact":
+  draw_line(locked_target-global_position+Vector2(-18,-2),locked_target-global_position+Vector2(18,-2),Color("e1dec2"),3)
  if phase == "stunned":
   for i in range(3):
    draw_rect(Rect2(Vector2(sin(phase_elapsed * 5 + i * TAU / 3) * 16, -76 + cos(phase_elapsed * 5 + i * TAU / 3) * 3), Vector2(3,3)), Color("f6d68d"))

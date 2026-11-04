@@ -7,6 +7,7 @@ var network: Node
 var items: Node2D
 var combat: Node2D
 var encounter: Node2D
+var combat_zone: Node2D
 var effects: Node2D
 var storage: Node2D
 var boss_ui: Control
@@ -47,6 +48,10 @@ func _ready() -> void:
  encounter.name = "BossEncounter"
  encounter.set_script(preload("res://scripts/boss_encounter.gd"))
  add_child(encounter)
+ combat_zone = Node2D.new()
+ combat_zone.name = "CombatZone"
+ combat_zone.set_script(preload("res://scripts/combat_zone.gd"))
+ add_child(combat_zone)
  storage = Node2D.new()
  storage.name = "Storage"
  storage.set_script(preload("res://scripts/storage_service.gd"))
@@ -88,6 +93,7 @@ func _ready() -> void:
  $HUD.add_child(boss_ui)
  _create_network_ui()
  saves.startup()
+ _arena_button()
  get_tree().auto_accept_quit = false
  for arg in OS.get_cmdline_user_args():
   if arg == "--host":
@@ -229,3 +235,19 @@ func _request_close() -> void:
  if network.active:
   await network.stop()
  get_tree().quit()
+
+func _arena_button() -> void:
+ if has_meta("combat_test"): return
+ var button := Button.new()
+ button.text = "Проверка боя"
+ button.tooltip_text = "Сохранить свой мир и открыть отдельную временную арену"
+ button.position = Vector2(708,164)
+ button.theme = preload("res://scripts/visuals/art_direction.gd").theme()
+ button.focus_mode = Control.FOCUS_NONE
+ $HUD.add_child(button)
+ button.pressed.connect(func():
+  if network.active:
+   network.status = "Перед ареной выйдите из сетевой игры"
+   return
+  if not saves.save_now(): return
+  get_tree().change_scene_to_file("res://scenes/combat_arena.tscn"))

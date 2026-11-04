@@ -47,6 +47,9 @@ func _process(_delta: float) -> void:
   progress.text = "Бальзам · применение %d%%\n%s" % [roundi(main.player.medicine_progress*100),main.encounter.notice]
  elif main.player.medicine_cooldown > 0:
   progress.text = "Бальзам · готов через %.1f с\n%s" % [main.player.medicine_cooldown,main.encounter.notice]
+ var action: String = main.player.fighter.phase()
+ var names := {"attack_windup":"Клинок · замах","attack_active":"Клинок · удар","attack_recovery":"Клинок · восстановление","roll":"Перекат · неуязвимость" if main.player.fighter.roll_invulnerable() else "Перекат · восстановление","parry":"Парирование · окно" if main.player.fighter.parry_open() else ("Парирование · подготовка" if main.player.fighter.elapsed < 0.04 else "Парирование · восстановление"),"parry_success":"Успешное парирование","hurt":"Получен удар"}
+ if action != "idle": progress.text = str(names.get(action,action))+"\n"+main.encounter.notice
  var values = main.player.resources
  var current := [values.health, values.mana, values.stamina]
  var maximum := [values.max_health, values.max_mana, values.max_stamina]

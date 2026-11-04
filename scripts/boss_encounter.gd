@@ -24,7 +24,7 @@ func authoritative() -> bool:
 func alive_players() -> Array:
  var result: Array = []
  for player in main.get_node("Players").get_children():
-  if not player.dead: result.append(player)
+  if not player.dead and (not main.combat_zone.active or main.combat_zone.contains_body(player)): result.append(player)
  return result
 
 func nearest_player(at: Vector2) -> CharacterBody2D:
@@ -79,10 +79,12 @@ func try_spawn() -> bool:
  add_child(actor)
  actor.position = at
  actor.remote_target = at
+ main.combat_zone.lock(at,players)
  used_once = true
  pending = false
  living_participants.clear()
- for player in players: living_participants[int(str(player.name))] = true
+ for player in players:
+  if main.combat_zone.contains_body(player): living_participants[int(str(player.name))] = true
  notice = "Andrew готовится к бою"
  if is_instance_valid(main.boss_ui): main.boss_ui.bind_boss(state)
  publish()
@@ -93,6 +95,7 @@ func _player_changed(id: int, data: Dictionary) -> void:
   end_fight("player_died")
 
 func end_fight(reason: String) -> void:
+ main.combat_zone.unlock()
  if state != null: state.active = false
  if is_instance_valid(actor):
   if reason == "defeated": main.effects.burst("impact",actor.position+Vector2(0,-32))
@@ -103,7 +106,10 @@ func end_fight(reason: String) -> void:
  actor = null
  pending = false
  living_participants.clear()
- notice = "Andrew повержен" if reason == "defeated" else "Бой завершён · новый Andrew в новом запуске"
+ if reason == "defeated": notice = "Andrew повержен"
+ elif main.has_meta("combat_test"): notice = "Бой завершён · Andrew — повторить"
+ elif reason == "no_players": notice = "Игроки покинули арену · бой завершён"
+ else: notice = "Бой завершён · новый Andrew в новом запуске"
  if is_instance_valid(main.boss_ui): main.boss_ui.unbind_boss()
  publish()
 
@@ -134,9 +140,10 @@ func _physics_process(delta: float) -> void:
    try_spawn()
 
 func snapshot() -> Dictionary:
- return {"kills": kills, "used": used_once, "pending": pending, "notice": notice, "boss": actor.snapshot() if is_instance_valid(actor) else {}}
+ return {"kills": kills, "used": used_once, "pending": pending, "notice": notice, "boss": actor.snapshot() if is_instance_valid(actor) else {},"zone":main.combat_zone.snapshot()}
 
 func apply(data: Dictionary) -> void:
+ main.combat_zone.apply(data.get("zone",{}))
  kills = data.kills
  used_once = data.used
  pending = data.pending

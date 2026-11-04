@@ -11,7 +11,7 @@ static func sample(kind: String, progress: float, aim: Vector2, rest_hand: Vecto
  if kind == "build":
   hand += aim.normalized()*sin(t*PI)*8
  else:
-  var reach := 12.0 if kind == "punch" else 8.0
+  var reach := 12.0 if kind in ["punch","blade"] else 8.0
   hand = rest_hand.lerp(Vector2(0,-5)+Vector2.from_angle(angle)*reach,presence)
  var elbow := Vector2(6,-2).lerp(Vector2(5,-4).lerp(hand,0.5)+Vector2(0,1.5),presence)
  var drive := sin(t*PI)*presence

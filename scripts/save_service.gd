@@ -28,6 +28,14 @@ var new_dialog: ConfirmationDialog
 
 func _ready() -> void:
  main = get_parent()
+ if main.has_meta("combat_test"):
+  automatic = false
+  write_blocked = true
+  profile_name = "arena"
+  profile_id = "0".repeat(32)
+  profile_key = "0".repeat(64)
+  peer_profiles[1] = profile_id
+  return
  automatic = not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--with-save")
  for arg in OS.get_cmdline_user_args():
   if arg.begins_with("--profile="):
@@ -187,6 +195,7 @@ func _process(delta: float) -> void:
    save_now()
 
 func can_save() -> bool:
+ if main.has_meta("combat_test"): return false
  return identity_error == "" and is_instance_valid(main.network) and not main.network.stopping and (not main.network.active or (main.network.connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()))
 
 func _capture_peer(peer_id: int) -> void:
@@ -199,6 +208,7 @@ func _capture_peer(peer_id: int) -> void:
  var digest: String = profiles.get(id, {}).get("key_hash", profile_key.sha256_text() if peer_id == 1 else "")
  var selected: int = main.interaction.selected_slot if peer_id == 1 and is_instance_valid(main.interaction) else int(main.network.commands.get(peer_id, {}).get("slot", profiles.get(id, {}).get("selected", 0)))
  profiles[id] = {"key_hash": digest, "inventory": main.items.inventory_for(peer_id).to_data(), "life": main.combat.player_data(body), "selected": selected}
+ profiles[id].life.erase("action") # Combat input is transient, never resumed by loading.
  profiles[id].life["medicine_progress"] = 0.0 # Pending self-use is never committed by loading/rejoining.
 
 func authorize(id: String, key: String) -> String:
@@ -245,6 +255,8 @@ func capture() -> Dictionary:
   _capture_peer(peer_id)
  var combat: Dictionary = main.combat.snapshot(true)
  combat.players = {}
+ for enemy in combat.entities.values():
+  for key in ["attack_state","attack_elapsed","attack_facing"]: enemy.erase(key)
  combat["spawn_timer"] = main.combat.spawn_timer
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id

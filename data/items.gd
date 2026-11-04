@@ -1,5 +1,6 @@
 extends RefCounted
 # Item IDs are independent of terrain IDs; recipes live in recipes.gd.
+const Battle = preload("res://data/battle.gd")
 const STACK_LIMIT := 99
 const DEFINITIONS := {
  "dirt": {"name": "Земля", "kind": "solid", "block": 1, "atlas": Vector2i(1, 0)},
@@ -11,7 +12,7 @@ const DEFINITIONS := {
  "wood": {"name": "Древесина", "kind": "material", "icon": "res://assets/icons/wood.svg"},
  "wood_block": {"name": "Доски", "kind": "solid", "block": 4, "icon": "res://assets/icons/planks.svg"},
  "spark_balm": {"name": "Искровой бальзам", "kind": "consumable", "stack": 20, "heal": 30, "use_time": 1.0, "cooldown": 6.0, "interrupt_delay": 0.6, "icon": "res://assets/icons/balm.svg"},
- "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": 0.45, "stamina_cost": 18.0, "damage": 18, "poise_damage": 18, "reach": 32.0, "icon": "res://assets/icons/blade.svg"},
+ "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": Battle.BLADE.windup+Battle.BLADE.active+Battle.BLADE.recovery, "stamina_cost": Battle.BLADE.cost, "damage": Battle.BLADE.damage, "poise_damage": Battle.BLADE.poise, "reach": Battle.BLADE.reach, "icon": "res://assets/icons/blade.svg"},
  "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
  "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},
  "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},

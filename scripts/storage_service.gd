@@ -35,6 +35,7 @@ func placement_status(body: CharacterBody2D, anchor: Vector2i) -> String:
  if chests.size() >= Rules.MAX_CHESTS: return "Слишком много сундуков"
  if anchor.x < 0 or anchor.x+Rules.CHEST_WIDTH > main.world.world_width or anchor.y < 0 or anchor.y >= main.world.world_depth-1: return "За границей мира"
  for part in Rules.chest_cells(anchor):
+  if main.world.combat_edit_locked(part): return "Арена закрыта для строительства и добычи"
   if not main.world.in_reach(body,part): return "Сундук вне досягаемости"
   if main.world.block_at(part) != -1 or main.world.door_at(part) != null or at_cell(part) != null or main.world.torches.has(part) or main.combat.chest_at(part) != -1:
    return "Нужны две свободные клетки"
@@ -54,8 +55,11 @@ func place(body: CharacterBody2D, anchor: Vector2i, slot: int) -> bool:
  return true
 
 func removal_status(body: CharacterBody2D, cell: Vector2i) -> String:
+ if main.world.combat_edit_locked(cell): return "Арена закрыта для строительства и добычи"
  var chest = at_cell(cell)
  if chest == null: return "Здесь нет сундука"
+ for part in Rules.chest_cells(chest.anchor):
+  if main.world.combat_edit_locked(part): return "Арена закрыта для строительства и добычи"
  var status := access_status(body,chest.anchor)
  if status != "Можно открыть сундук": return status
  if not chest.known_empty: return "Сначала опустоши сундук"

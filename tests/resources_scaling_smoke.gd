@@ -65,6 +65,7 @@ func run() -> void:
  check_result(main.items.swing(main.player, 0, Vector2.RIGHT) and main.player.resources.stamina == 82, "Existing weapon consumes configured stamina once")
  main.player.resources.stamina = 0
  check_result(main.player.swing_remaining > 0, "Started swing completes even if reserve then reaches zero")
+ combat.tick_fighter(main.player,0.5)
  check_result(main.items.use_primary(main.player, Vector2i(96,22),9) and main.player.resources.stamina == 0, "Mining still works at zero stamina without spending it")
  main.player.resources.mana = 7
  combat.respawn(main.player)
