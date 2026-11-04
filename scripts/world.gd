@@ -32,9 +32,9 @@ func generate() -> void:
  tiles.tile_size = Vector2i(16, 16)
  tiles.add_physics_layer()
  tiles.set_physics_layer_collision_layer(0, 1)
- for source_id in [0, 1]:
+ for source_id in Blocks.TEXTURES:
   var atlas := TileSetAtlasSource.new()
-  atlas.texture = preload("res://assets/terrain.png") if source_id == 0 else preload("res://assets/icons/emberstone.svg")
+  atlas.texture = Blocks.TEXTURES[source_id]
   atlas.texture_region_size = Vector2i(16, 16)
   tiles.add_source(atlas, source_id)
   for id in Blocks.DEFINITIONS:
@@ -81,6 +81,7 @@ func generate() -> void:
     solid.set_cell(Vector2i(x, y), int(Blocks.DEFINITIONS[id].get("source", 0)), Blocks.DEFINITIONS[id].atlas)
  solid.update_internals()
  trees = Trees.generate(self)
+ if is_instance_valid(forest): forest.falling.clear()
  if not is_instance_valid(forest):
   forest = Node2D.new()
   forest.name = "Forest"
@@ -155,10 +156,25 @@ func tree_snapshot() -> Array:
  return trees.duplicate(true)
 
 func restore_trees(records: Array) -> void:
+ if is_instance_valid(forest): forest.falling.clear()
  trees = records.duplicate(true)
  for tree in trees:
   # Never restore a floating tree, including from old terrain-only saves.
   if block_at(tree.cell) == -1: tree.active = false
+
+func tree_at(cell: Vector2i) -> int:
+ for index in range(trees.size()):
+  var tree: Dictionary = trees[index]
+  if tree.active and cell.x == tree.cell.x and cell.y < tree.cell.y and cell.y >= tree.cell.y - tree.height:
+   return index
+ return -1
+
+# Trusted host/replication boundary. Keep records in place so IDs stay stable.
+func fell_tree(index: int, direction: int = 1) -> bool:
+ if index < 0 or index >= trees.size() or not trees[index].active: return false
+ if is_instance_valid(forest): forest.animate_fall(trees[index], direction)
+ trees[index].active = false
+ return true
 
 
 func in_reach(actor: CharacterBody2D, cell: Vector2i) -> bool:

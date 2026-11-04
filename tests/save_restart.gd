@@ -26,10 +26,14 @@ func run() -> void:
   main.world.apply_edit(main.world.trees[0].cell, -1)
   main.world.apply_edit(Vector2i(96, 22), -1)
   main.world.apply_edit(Vector2i(97, 21), 2)
+  main.world.apply_edit(Vector2i(99, 21), 4)
   main.world.apply_decoration("wall", Vector2i(98, 21), 1)
   main.world.apply_decoration("torch", Vector2i(98, 21), 1)
   main.items.local_inventory().add("stone", 12)
   main.items.local_inventory().add("stone_pick", 1)
+  main.items.local_inventory().add("stone_axe", 1)
+  main.items.local_inventory().add("wood", 6)
+  main.items.local_inventory().add("wood_block", 3)
   main.player.health = 81
   main.player.unclothed = true
   main.interaction.selected_slot = 1
@@ -52,6 +56,7 @@ func run() -> void:
   check_result(main.world.block_at(Vector2i(96, 22)) == -1 and main.world.block_at(Vector2i(97, 21)) == 2, "Real restart preserves mined and placed blocks")
   check_result(main.world.wall_at(Vector2i(98, 21)) == 1 and main.world.torches.has(Vector2i(98, 21)), "Real restart preserves walls and torches")
   check_result(main.items.local_inventory().count_item("stone") == 12 and main.items.local_inventory().count_item("stone_pick") == 1 and main.interaction.selected_slot == 1, "Real restart restores inventory and hotbar selection")
+  check_result(main.items.local_inventory().count_item("stone_axe") == 1 and main.items.local_inventory().count_item("wood") == 6 and main.items.local_inventory().count_item("wood_block") == 3 and main.world.block_at(Vector2i(99,21)) == 4 and main.world.solid.get_cell_source_id(Vector2i(99,21)) == 2, "Real restart preserves forestry items and distinct wooden tiles")
   check_result(main.player.health == 81 and main.player.unclothed and main.player.position == Vector2(1544, 328), "Real restart restores player health appearance and position")
   check_result(main.combat.world_time == 190 and main.combat.is_night(), "Real restart resumes night without resetting day")
   var tree: Dictionary = main.world.trees[0]

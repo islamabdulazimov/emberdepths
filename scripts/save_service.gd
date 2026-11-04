@@ -294,6 +294,7 @@ func restore(state: Dictionary) -> String:
  main.items.next_drop_id = state.next_drop
  main.items.attack_ready_at.clear()
  main.items.attack_profiles.clear()
+ main.items.tool_ready_at.clear()
  main.reset_players()
  main.add_player(1, main.world.safe_spawn_position())
  main.select_local_player(1)

@@ -29,6 +29,8 @@ func _ready() -> void:
  main.items.terrain_changed.connect(_terrain_changed)
  main.items.decoration_changed.connect(_decoration_changed)
  main.items.attack_started.connect(_attack_started)
+ main.items.chop_started.connect(_chop_started)
+ main.items.tree_felled.connect(_tree_felled)
  main.items.inventory_changed.connect(_inventory_changed)
  main.items.drop_changed.connect(_drop_changed)
  multiplayer.peer_connected.connect(_peer_joined)
@@ -274,6 +276,7 @@ func _physics_process(delta: float) -> void:
    mining.erase(id)
    main.items.use_primary(body, cell, command.slot)
   elif command.mode == 1 and primary.begins_with("Можно"):
+   if definition.get("kind", "") == "axe": main.items.animate_chop(body,cell,command.slot)
    var progress: Dictionary = mining.get(id, {"cell": cell, "slot": command.slot, "time": 0.0})
    if progress.cell != cell or progress.slot != command.slot:
     progress = {"cell": cell, "slot": command.slot, "time": 0.0}
@@ -376,6 +379,21 @@ func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
 func _attack_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server():
   _broadcast("sync_attack", [id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false))])
+
+func _chop_started(id: int, direction: Vector2) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_chop",[id,direction])
+
+func _tree_felled(index: int, direction: int) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_tree_felled",[index,direction])
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_chop(id: int, direction: Vector2) -> void:
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body != null: body.play_tool_swing(direction)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_tree_felled(index: int, direction: int) -> void:
+ main.world.fell_tree(index,direction)
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_attack(id: int, direction: Vector2, unarmed: bool) -> void:

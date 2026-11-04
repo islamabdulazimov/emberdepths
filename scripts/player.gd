@@ -17,6 +17,7 @@ var elapsed := 0.0
 var swing_remaining := 0.0
 var swing_direction := Vector2.RIGHT
 var swing_unarmed := false
+var swing_tool := false
 var profile_id := ""
 var resources = preload("res://scripts/player_resources.gd").new()
 var resource_sync := 0.0
@@ -56,11 +57,16 @@ func _physics_process(delta: float) -> void:
  queue_redraw()
 
 func play_swing(direction: Vector2, unarmed: bool = false) -> void:
+ swing_tool = false
  swing_unarmed = unarmed
  swing_remaining = 0.24
  swing_direction = direction
  facing = 1 if direction.x >= 0 else -1
  queue_redraw()
+
+func play_tool_swing(direction: Vector2) -> void:
+ play_swing(direction)
+ swing_tool = true
 
 func _process(delta: float) -> void:
  # Remote bodies do not run local physics; use replicated velocity for their gait.
@@ -124,9 +130,16 @@ func _draw() -> void:
    var pivot := Vector2(0,-5)
    var tip := pivot + Vector2.from_angle(angle) * 24
    draw_arc(pivot,24,angle - 0.4 * facing,angle,10,Color(0.95,0.87,0.64,0.4 * (1-progress)),2)
-   draw_line(hand,tip,Color("283341"),4)
-   draw_line(hand,tip,Color("c4dcdb"),2)
-   draw_line(hand,hand - Vector2.from_angle(angle) * 4,Color("a88158"),3)
+   if swing_tool:
+    var along := Vector2.from_angle(angle)
+    var normal := along.orthogonal()
+    draw_line(hand,tip,Color("a88158"),3)
+    draw_colored_polygon(PackedVector2Array([tip - along * 6,tip + along * 3,tip + along * 4 + normal * 9,tip - along * 5 + normal * 8]),Color("9fb3ba"))
+    draw_line(tip + along * 4 + normal * 3,tip + along * 4 + normal * 9,Color("d5e6d6"),2)
+   else:
+    draw_line(hand,tip,Color("283341"),4)
+    draw_line(hand,tip,Color("c4dcdb"),2)
+    draw_line(hand,hand - Vector2.from_angle(angle) * 4,Color("a88158"),3)
  else:
   _draw_limb(Vector2(4,-5),Vector2(6,-2),hand,skin,3)
  draw_set_transform_matrix(Transform2D.IDENTITY)

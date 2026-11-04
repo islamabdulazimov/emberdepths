@@ -2,6 +2,8 @@ extends Node2D
 signal terrain_changed(cell: Vector2i, block_id: int)
 signal decoration_changed(kind: String, cell: Vector2i, value: int)
 signal attack_started(id: int, direction: Vector2)
+signal chop_started(id: int, direction: Vector2)
+signal tree_felled(index: int, direction: int)
 signal inventory_changed(id: int)
 signal drop_changed(id: int, data: Dictionary)
 const Recipes = preload("res://data/recipes.gd")
@@ -14,6 +16,7 @@ var drops: Dictionary = {}
 var next_drop_id := 1
 var attack_ready_at: Dictionary = {}
 var attack_profiles: Dictionary = {}
+var tool_ready_at: Dictionary = {}
 var main: Node2D
 
 func _ready() -> void:
@@ -159,6 +162,12 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
   return "Вы погибли"
  if kind == "weapon":
   return "Недостаточно выносливости" if body.resources.stamina < float(selected_definition(body, slot).stamina_cost) else "ЛКМ — удар клинком"
+ if kind == "axe":
+  if main.world.tree_at(cell) == -1: return "Наведи топор на ствол дерева"
+  if not main.world.in_reach(body,cell): return "Дерево слишком далеко"
+  if main.world.block_at(cell) != -1 or not main.combat.line_clear(body.position + Vector2(0,-5),main.world.cell_center(cell)):
+   return "Ствол за преградой"
+  return "Можно рубить дерево"
  if main.combat.chest_at(cell) != -1:
   if not main.world.in_reach(body, cell):
    return "Сундук слишком далеко"
@@ -176,6 +185,7 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
 
 func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float:
  var definition := selected_definition(body, slot)
+ if definition.get("kind", "") == "axe": return float(definition.chop_time)
  if main.combat.chest_at(cell) != -1:
   return 0.6
  if definition.is_empty() and main.combat.enemy_at(cell) != -1:
@@ -211,6 +221,7 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  var kind: String = definition.get("kind", "")
  if kind == "weapon":
   return swing(body, slot, main.world.cell_center(cell) - body.position)
+ if kind == "axe": return chop_tree(body, cell, slot)
  if main.combat.chest_at(cell) != -1:
   return main.combat.break_chest(body, cell)
  if kind == "" and main.combat.enemy_at(cell) != -1:
@@ -230,6 +241,27 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   _check_torch_support()
   return true
  return try_edit(body, cell, -1, main.get_node("Players").get_children())
+
+func animate_chop(body: CharacterBody2D, cell: Vector2i, slot: int) -> void:
+ if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно рубить дерево": return
+ var id := int(str(body.name))
+ var now := Time.get_ticks_msec()
+ if now < int(tool_ready_at.get(id,0)): return
+ tool_ready_at[id] = now + 420
+ var direction: Vector2 = (main.world.cell_center(cell) - body.position).normalized()
+ body.play_tool_swing(direction)
+ chop_started.emit(id,direction)
+
+func chop_tree(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно рубить дерево": return false
+ var index: int = main.world.tree_at(cell)
+ var tree: Dictionary = main.world.trees[index]
+ var at := Vector2(tree.cell.x * 16 + 8,tree.cell.y * 16 - 10)
+ var direction := 1 if body.position.x < at.x else -1
+ if not main.world.fell_tree(index,direction): return false
+ tree_felled.emit(index,direction)
+ spawn_drop("wood",int(tree.height),at)
+ return true
 
 func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  if body.dead or slot < 0 or slot >= Inventory.HOTBAR_COUNT:

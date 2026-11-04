@@ -45,6 +45,7 @@ func _process(delta: float) -> void:
  var primary: String = service.primary_status(player, selected_cell, selected_slot)
  var placement: String = service.placement_status(player, selected_cell, selected_slot)
  var status := primary if world.block_at(selected_cell) != -1 or kind == "weapon" else placement
+ if kind == "axe": status = primary
  if kind == "wall" and world.wall_at(selected_cell) != -1:
   status = primary
  if world.torches.has(selected_cell) or get_parent().combat.chest_at(selected_cell) != -1 or (kind == "" and get_parent().combat.enemy_at(selected_cell) != -1):
@@ -59,6 +60,7 @@ func _process(delta: float) -> void:
    if not network.active:
     service.use_primary(player, selected_cell, selected_slot)
   elif primary.begins_with("Можно"):
+   if kind == "axe" and not network.active: service.animate_chop(player,selected_cell,selected_slot)
    if mining_cell != selected_cell or mining_slot != selected_slot:
     mining_time = 0.0
     mining_cell = selected_cell

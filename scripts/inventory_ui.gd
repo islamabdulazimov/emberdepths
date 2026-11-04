@@ -43,15 +43,19 @@ func _ready() -> void:
  crafting = PanelContainer.new()
  crafting.position = Vector2(708, 200)
  add_child(crafting)
+ var scroll := ScrollContainer.new()
+ scroll.custom_minimum_size = Vector2(236, 300)
+ scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+ crafting.add_child(scroll)
  var craft_list := VBoxContainer.new()
- crafting.add_child(craft_list)
+ scroll.add_child(craft_list)
  var title := Label.new()
  title.text = "Крафт без верстака"
  title.add_theme_font_size_override("font_size", 15)
  craft_list.add_child(title)
  for recipe_id in Recipes.DEFINITIONS:
   var button := Button.new()
-  button.custom_minimum_size = Vector2(236, 42)
+  button.custom_minimum_size = Vector2(220, 42)
   button.clip_text = true
   button.focus_mode = Control.FOCUS_NONE
   button.add_theme_font_size_override("font_size", 12)

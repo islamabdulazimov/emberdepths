@@ -4,6 +4,10 @@ const Art = preload("res://scripts/visuals/tree_art.gd")
 var world: Node2D
 var rustle: AudioStreamPlayer
 var sound_gain := 0.0
+var falling: Array = []
+
+func animate_fall(record: Dictionary, direction: int) -> void:
+ falling.append({"tree": record.duplicate(true),"direction": 1 if direction >= 0 else -1,"age": 0.0})
 
 func _ready() -> void:
  world = get_parent()
@@ -20,6 +24,9 @@ func _ready() -> void:
  rustle.play()
 
 func _process(delta: float) -> void:
+ for i in range(falling.size()-1,-1,-1):
+  falling[i].age += delta
+  if falling[i].age >= 0.5: falling.remove_at(i)
  var main := world.get_parent()
  var target := 0.0
  var listener = main.get("player")
@@ -40,6 +47,12 @@ func _draw() -> void:
   if not visible_area.has_point(root): continue
   draw_set_transform(root)
   Art.draw_tree(self, record, combat.world_time)
+ for entry in falling:
+  var record: Dictionary = entry.tree
+  var root := Vector2(record.cell.x * 16 + 8,record.cell.y * 16)
+  var t: float = clampf(entry.age / 0.5,0,1)
+  draw_set_transform(root,entry.direction * t * t * PI * 0.5)
+  Art.draw_tree(self,record,combat.world_time)
  draw_set_transform_matrix(Transform2D.IDENTITY)
 
 func _exit_tree() -> void:

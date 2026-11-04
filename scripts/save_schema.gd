@@ -70,7 +70,7 @@ static func validate(value: Variant) -> String:
  if not world.blocks is Dictionary or not world.walls is Dictionary or not world.torches is Array or world.blocks.size() > width * depth or world.walls.size() > width * depth or world.torches.size() > 2048:
   return "Слишком большой или неверный журнал мира"
  for position in world.blocks:
-  if not cell(position, width, depth) or not integer(world.blocks[position], -1, 3) or (world.blocks[position] != -1 and not Blocks.DEFINITIONS.has(world.blocks[position])):
+  if not cell(position, width, depth) or not integer(world.blocks[position], -1, 2147483647) or (world.blocks[position] != -1 and not Blocks.DEFINITIONS.has(world.blocks[position])):
    return "Неверный блок в журнале"
  for position in world.walls:
   if not cell(position, width, depth) or not integer(world.walls[position], -1, 2) or not world.walls[position] in [-1, 1, 2]:
