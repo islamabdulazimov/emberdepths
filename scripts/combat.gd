@@ -258,7 +258,7 @@ func resolve_attack(id: int, direction: Vector2) -> void:
   var target: Vector2 = boss.position + Vector2(0, -29)
   var offset: Vector2 = target - origin
   if offset.length() <= float(profile.reach) + 23 and (offset.length() < 1 or offset.normalized().dot(direction) >= 0.2) and line_clear(origin, target):
-   boss.take_hit(int(profile.damage), int(profile.damage))
+   boss.take_hit(int(profile.damage), int(profile.get("poise", profile.damage)))
  for chest_id in chests.keys():
   var target: Vector2 = chests[chest_id].position
   var offset := target - origin

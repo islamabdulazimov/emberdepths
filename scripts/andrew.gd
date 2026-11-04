@@ -3,6 +3,7 @@ var encounter: Node2D
 var state: RefCounted
 var definition: Dictionary
 var phase := "intro"
+var phase_revision := 0
 var phase_elapsed := 0.0
 var phase_duration := 2.2
 var facing := 1
@@ -24,11 +25,14 @@ func _ready() -> void:
 
 func enter_phase(value: String, duration: float) -> void:
  phase = value
+ phase_revision += 1
  phase_elapsed = 0
  phase_duration = duration
  indicator_active = false
  hit_targets.clear()
  impact_emitted = false
+ var labels := {"intro": "вступление", "chase": "ищет дистанцию", "stunned": "оглушён", "uppercut_windup": "готовит апперкот", "uppercut_active": "апперкот", "uppercut_recovery": "восстанавливается", "backflip": "отскок", "spin_windup": "готовит вертушку", "spin_active": "вертушка", "spin_recovery": "восстанавливается", "super_windup": "готовит суператаку", "super_flight": "прыжок", "super_impact": "удар о землю", "super_recovery": "восстанавливается"}
+ encounter.notice = state.boss_name + " · " + str(labels.get(value, value))
  encounter.publish()
 
 func take_hit(damage: int, poise_damage: int) -> bool:
@@ -220,16 +224,19 @@ func _physics_process(delta: float) -> void:
    else:
     enter_phase("super_recovery", definition.super_recovery)
     encounter.notice = "Препятствие прервало прыжок Andrew"
+    encounter.publish()
   elif phase_elapsed > 2.5:
    enter_phase("super_recovery", definition.super_recovery)
  if position.y > encounter.main.world.world_depth * 16 + 128: encounter.end_fight("fell")
  queue_redraw()
 
 func snapshot() -> Dictionary:
- return {"state": state.snapshot(), "position": position, "velocity": velocity, "phase": phase, "elapsed": phase_elapsed, "duration": phase_duration, "facing": facing, "target": locked_target, "indicator": indicator_active}
+ return {"state": state.snapshot(), "position": position, "velocity": velocity, "phase": phase, "phase_revision": phase_revision, "elapsed": phase_elapsed, "duration": phase_duration, "facing": facing, "target": locked_target, "indicator": indicator_active}
 
 func apply(data: Dictionary) -> void:
  state.apply(data.state)
+ if int(data.get("phase_revision", 0)) < phase_revision: return
+ phase_revision = int(data.get("phase_revision", 0))
  position = data.position
  remote_target = position
  velocity = data.velocity
@@ -257,6 +264,9 @@ func _draw() -> void:
   draw_rect(zone, Color(1,0.12,0.13,0.2))
   draw_rect(zone, Color("ff6166"), false, 2)
   draw_line(locked_target - global_position - Vector2(float(definition.super_radius), 0), locked_target - global_position + Vector2(float(definition.super_radius), 0), Color("ff5158"), 3)
+ if phase == "stunned":
+  for i in range(3):
+   draw_rect(Rect2(Vector2(sin(phase_elapsed * 5 + i * TAU / 3) * 16, -76 + cos(phase_elapsed * 5 + i * TAU / 3) * 3), Vector2(3,3)), Color("f6d68d"))
  var angle := 0.0
  if phase == "spin_active": angle = facing * TAU * clampf(phase_elapsed / phase_duration, 0, 1)
  if phase == "backflip": angle = -facing * TAU * clampf(phase_elapsed / phase_duration, 0, 1)

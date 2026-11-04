@@ -158,13 +158,14 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  if body.dead:
   return "Вы погибли"
  if kind == "weapon":
-  return "ЛКМ — удар клинком"
+  return "Недостаточно выносливости" if body.resources.stamina < float(selected_definition(body, slot).stamina_cost) else "ЛКМ — удар клинком"
  if main.combat.chest_at(cell) != -1:
   if not main.world.in_reach(body, cell):
    return "Сундук слишком далеко"
   var chest_id: int = main.combat.chest_at(cell)
   return "Можно разбить сундук" if main.combat.line_clear(body.position + Vector2(0, -5), main.combat.chests[chest_id].position) else "Сундук за преградой"
  if kind == "" and main.combat.enemy_at(cell) != -1:
+  if body.resources.stamina < main.combat.Rules.PUNCH_STAMINA_COST: return "Недостаточно выносливости"
   var enemy = main.combat.entities[main.combat.enemy_at(cell)]
   return "Можно ударить кулаком" if body.position.distance_to(enemy.position) <= 29 else "Враг слишком далеко"
  if kind == "wall":
@@ -284,7 +285,7 @@ func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
  main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
- attack_profiles[id] = {"damage": definition.damage, "reach": definition.reach, "unarmed": false}
+ attack_profiles[id] = {"damage": definition.damage, "poise": definition.poise_damage, "reach": definition.reach, "unarmed": false}
  body.play_swing(aim)
  attack_started.emit(id, aim)
  return true
@@ -301,7 +302,7 @@ func punch(body: CharacterBody2D, direction: Vector2) -> bool:
   return false
  main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + 550
- attack_profiles[id] = {"damage": 6, "reach": 22.0, "unarmed": true}
+ attack_profiles[id] = {"damage": main.combat.Rules.PUNCH_DAMAGE, "poise": main.combat.Rules.PUNCH_POISE_DAMAGE, "reach": 22.0, "unarmed": true}
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
  body.play_swing(aim, true)
  attack_started.emit(id, aim)

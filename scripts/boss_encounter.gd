@@ -53,9 +53,9 @@ func _find_spawn(players: Array) -> Variant:
     var floor_y: int = origin.y + dy
     if column < 2 or column >= main.world.world_width - 2 or floor_y < 5 or floor_y >= main.world.world_depth: continue
     var clear := true
-    for x in range(column - 1, column + 2):
-     if main.world.block_at(Vector2i(x, floor_y)) == -1: clear = false
-     for y in range(floor_y - 4, floor_y):
+    for x in range(column - 2, column + 3):
+     if absi(x - column) <= 1 and main.world.block_at(Vector2i(x, floor_y)) == -1: clear = false
+     for y in range(floor_y - 5, floor_y):
       if main.world.block_at(Vector2i(x, y)) != -1: clear = false
     var at := Vector2(column * 16 + 8, floor_y * 16)
     for other in players:
@@ -78,6 +78,7 @@ func try_spawn() -> bool:
  actor.definition = Definition.ANDREW
  add_child(actor)
  actor.position = at
+ actor.remote_target = at
  used_once = true
  pending = false
  living_participants.clear()
@@ -169,6 +170,8 @@ func motion_snapshot() -> Dictionary:
 
 func apply_motion(data: Dictionary) -> void:
  if not is_instance_valid(actor) or data.is_empty(): return
+ if int(data.get("phase_revision", 0)) < actor.phase_revision: return
+ actor.phase_revision = int(data.get("phase_revision", 0))
  actor.remote_target = data.position
  actor.velocity = data.velocity
  actor.phase = data.phase

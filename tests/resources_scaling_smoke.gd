@@ -12,6 +12,10 @@ func run() -> void:
  for players in range(1, 5):
   check_result(Rules.scaled_health(100, players) == [100, 125, 150, 175][players - 1], "Shared health multiplier for %d players" % players)
   check_result(Rules.scaled_health(45, players) == [45, 57, 68, 79][players - 1], "Fractional health rounds upward for %d players" % players)
+ for players in range(1, 5):
+  var boss = load("res://scripts/boss_state.gd").new()
+  boss.begin(load("res://data/bosses.gd").ANDREW, players)
+  check_result(boss.max_health == [360, 450, 540, 630][players - 1] and boss.max_poise == 90, "Andrew uses same scaling while poise stays unchanged for %d players" % players)
  check_result(Rules.scaled_health(100, 0) == 100 and Rules.scaled_health(100, 9) == 175, "Player count is constrained to 1–4")
  var resources = Resources.new()
  resources.health = 40
@@ -41,6 +45,11 @@ func run() -> void:
  main.get_node("Players/2").dead = true
  var scaled: int = combat.spawn_entity("ashling", Vector2(1650, 300))
  check_result(combat.entities[scaled].max_health == 79 and combat.entities[actor].max_health == 45, "Dead connected player counts and existing mobs never rescale on join")
+ var ghost: int = combat.spawn_entity("spirit", Vector2(1700,300), Vector2(1700,300))
+ combat.hit_entity(ghost,9999,Vector2.RIGHT)
+ var first_ghost_hit: bool = combat.entities.has(ghost) and combat.entities[ghost].health == 2 and combat.entities[ghost].max_health == 4
+ combat.hit_entity(ghost,1,Vector2.RIGHT)
+ check_result(first_ghost_hit and not combat.entities.has(ghost), "Four-player spirit scales visible health yet still needs exactly two hits")
  var state: Dictionary = combat.entity_data(scaled)
  main.remove_player(4)
  var next: int = combat.spawn_entity("ashling", Vector2(1690, 300))
@@ -56,6 +65,7 @@ func run() -> void:
  check_result(main.items.swing(main.player, 0, Vector2.RIGHT) and main.player.resources.stamina == 82, "Existing weapon consumes configured stamina once")
  main.player.resources.stamina = 0
  check_result(main.player.swing_remaining > 0, "Started swing completes even if reserve then reaches zero")
+ check_result(main.items.use_primary(main.player, Vector2i(96,22),9) and main.player.resources.stamina == 0, "Mining still works at zero stamina without spending it")
  main.player.resources.mana = 7
  combat.respawn(main.player)
  check_result(main.player.health == 100 and main.player.resources.mana == 50 and main.player.resources.stamina == 100, "Respawn completely restores all three resources")

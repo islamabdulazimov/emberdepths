@@ -4,8 +4,6 @@ const MAX_HEALTH := 100
 const HURT_IMMUNITY := 0.9
 const RESPAWN_DELAY := 1.8
 const RESPAWN_IMMUNITY := 3.0
-const REGEN_DELAY := 12.0
-const REGEN_RATE := 3.0
 const DAY_SECONDS := 180.0
 const NIGHT_SECONDS := 60.0
 const CYCLE_SECONDS := DAY_SECONDS + NIGHT_SECONDS
@@ -22,6 +20,8 @@ const MAX_STAMINA := 100.0
 const STAMINA_REGEN_DELAY := 0.8
 const STAMINA_REGEN_RATE := 28.0
 const PUNCH_STAMINA_COST := 8.0
+const PUNCH_DAMAGE := 6
+const PUNCH_POISE_DAMAGE := 6
 
 static func scaled_health(base_health: int, players: int) -> int:
  return ceili(base_health * (1.0 + HEALTH_PER_EXTRA_PLAYER * (clampi(players, 1, 4) - 1)))

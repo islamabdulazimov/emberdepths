@@ -51,7 +51,7 @@ func _process(delta: float) -> void:
   status = primary
  outline_color = Color("a9e89b") if status.begins_with("Можно") else Color("e97b77")
  if kind == "weapon":
-  outline_color = Color("f0cc8c")
+  outline_color = Color("e97b77") if primary == "Недостаточно выносливости" else Color("f0cc8c")
  build_cooldown = maxf(0.0, build_cooldown - delta)
  if can_use_mouse() and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
   if kind == "weapon":

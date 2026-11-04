@@ -45,8 +45,12 @@ func run() -> void:
  check_result(actor.state.max_health == 540 and actor.state.scaling_players == 3, "Boss health remains frozen on join and disconnect")
  actor.indicator_active = true
  actor.locked_target = Vector2(1600, 352)
+ var stale: Dictionary = actor.snapshot()
+ stale.erase("state")
  for i in range(5): actor.take_hit(18, 18)
  check_result(actor.phase == "stunned" and actor.state.poise == 0 and not actor.indicator_active and actor.locked_target == Vector2.ZERO, "Broken poise interrupts phase and clears attack markers")
+ main.encounter.apply_motion(stale)
+ check_result(actor.phase == "stunned" and not actor.indicator_active, "Old network motion cannot revive attack markers after interruption")
  actor.phase_elapsed = 0.8
  var before: int = actor.state.health
  actor.take_hit(18, 18)

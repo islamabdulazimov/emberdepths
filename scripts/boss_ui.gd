@@ -47,7 +47,7 @@ func _process(_delta: float) -> void:
 
 func refresh() -> void:
  visible = state != null and state.active
- if is_instance_valid(main) and is_instance_valid(main.inventory_ui) and main.inventory_ui.opened:
+ if is_instance_valid(main) and is_instance_valid(main.inventory_ui) and (main.inventory_ui.opened or (is_instance_valid(main.player) and main.player.dead)):
   visible = false
  if not visible: return
  title.text = "%s · %d / %d ОЗ" % [state.boss_name, state.health, state.max_health]

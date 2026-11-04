@@ -108,9 +108,14 @@ static func validate(value: Variant) -> String:
    return "Неполное существо"
   if not Rules.ENEMIES.has(entity.kind):
    return "Неизвестное существо"
-  var base: int = entity.get("base_health", Rules.ENEMIES[entity.kind].health)
-  var players: int = entity.get("scaling_players", 1)
-  var maximum: int = entity.get("max_health", base)
+  var raw_base: Variant = entity.get("base_health", Rules.ENEMIES[entity.kind].health)
+  var raw_players: Variant = entity.get("scaling_players", 1)
+  var raw_maximum: Variant = entity.get("max_health", raw_base)
+  if not integer(raw_base, 1, 1000000) or not integer(raw_players, 1, 4) or not integer(raw_maximum, 1, 2000000):
+   return "Неверные параметры масштабирования"
+  var base := int(raw_base)
+  var players := int(raw_players)
+  var maximum := int(raw_maximum)
   if base != Rules.ENEMIES[entity.kind].health or not integer(players, 1, 4) or maximum != Rules.scaled_health(base, players):
    return "Неверное масштабирование здоровья"
   if not integer(entity.health, 1, maximum) or not point(entity.position, width, depth) or not point(entity.anchor, width, depth) or not velocity(entity.velocity) or not scalar(entity.grace, 0, 2) or not scalar(entity.clock, 0, 1e12) or not scalar(entity.hit_stun, 0, 1):
