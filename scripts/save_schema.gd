@@ -2,6 +2,7 @@ extends RefCounted
 const Items = preload("res://data/items.gd")
 const Blocks = preload("res://data/blocks.gd")
 const Rules = preload("res://data/combat_rules.gd")
+const Trees = preload("res://data/trees.gd")
 
 static func integer(value: Variant, low: int, high: int) -> bool:
  return (value is int or value is float) and is_finite(float(value)) and value == floor(value) and value >= low and value <= high
@@ -79,6 +80,18 @@ static func validate(value: Variant) -> String:
   if not cell(position, width, depth) or torch_cells.has(position):
    return "Неверный факел в журнале"
   torch_cells[position] = true
+ if world.has("trees"):
+  if not world.trees is Array or world.trees.size() > width:
+   return "Неверный список деревьев"
+  var tree_columns: Dictionary = {}
+  for tree in world.trees:
+   if not tree is Dictionary or not tree.has_all(["cell", "height", "form", "seed", "active"]):
+    return "Неполное дерево"
+   if not cell(tree.cell, width, depth) or not integer(tree.height, Trees.MIN_HEIGHT, Trees.MAX_HEIGHT) or not integer(tree.form, 0, Trees.FORMS - 1) or not integer(tree.seed, 0, 2147483647) or not tree.active is bool:
+    return "Неверные параметры дерева"
+   if tree.cell.y < tree.height + 2 or tree_columns.has(tree.cell.x):
+    return "Неверное расположение деревьев"
+   tree_columns[tree.cell.x] = true
  if not value.profiles is Dictionary or value.profiles.is_empty() or value.profiles.size() > 64 or not value.profiles.has(value.host_profile):
   return "Неверные персонажи"
  for id in value.profiles:

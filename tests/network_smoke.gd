@@ -1,4 +1,5 @@
 extends SceneTree
+const Daylight = preload("res://data/daylight.gd")
 var failures := 0
 func check_result(ok: bool, message: String) -> void:
  if ok:
@@ -17,11 +18,17 @@ func run() -> void:
  main.set_physics_process(false)
  # Avoid real mouse driving or mutating terrain in this scripted scenario.
  main.interaction.set_process(false)
+ main.combat.spawning_enabled = false
+ var tree_cell: Vector2i = main.world.trees[0].cell
+ var tree_fixture := false
+ var saw_tree_removed := false
+ var saw_shared_sky := false
  if role == "host":
   # Test fixture only: grant remote players two stones, through host inventory.
   main.network.peer_admitted.connect(func(id):
    main.items.inventory_for(id).add("stone", 2)
    main.items.inventory_changed.emit(id))
+  main.combat.world_time = 190.0
   check_result(main.network.host_game() == OK, "Host opens ENet server")
  else:
   main.network.join_game("127.0.0.1")
@@ -48,6 +55,15 @@ func run() -> void:
    continue
   if not main.network.connected:
    continue
+  if role == "host" and not tree_fixture and Time.get_ticks_msec() - start > 1300:
+   main.world.apply_edit(tree_cell,-1)
+   main.items.terrain_changed.emit(tree_cell,-1)
+   tree_fixture = true
+  if not main.world.trees[0].active and main.world.block_at(tree_cell) == -1:
+   saw_tree_removed = true
+  var daylight := Daylight.sample(main.combat.world_time)
+  if main.combat.world_time > 190 and main.combat.world_time < 210 and daylight.moon_alpha == 1 and daylight.stars == 1:
+   saw_shared_sky = true
   if main.get_node("Players").get_child_count() == 4:
    saw_four = true
   if saw_four and main.get_node("Players").get_child_count() == 3:
@@ -94,6 +110,10 @@ func run() -> void:
    mined_once = true
   if main.world.changes.get(cell, 99) == 2:
    saw_built = true
+ if role != "rejected":
+  check_result(saw_tree_removed, "Host tree removal reaches existing and late players on " + role)
+  check_result(saw_shared_sky, "Sky samples shared host night clock on " + role)
+  check_result(main.world.trees[1].active and main.world.trees[1].height in range(5,9), "Unchanged tree variant survives bootstrap on " + role)
  if role == "rejected":
   check_result(not main.network.active, "Fifth player is rejected")
  elif role == "host":
@@ -120,5 +140,6 @@ func run() -> void:
   await create_timer(0.4).timeout
   check_result(main.items.local_inventory().count_item("stone") == 0 and before_leave[0].count == 2, "Leaving returns to original solo inventory without importing server items")
   check_result(main.items.drops.is_empty() and not world_before.is_empty(), "Leaving restores original solo world without copying server drops")
+  check_result(main.world.trees[0].active and main.combat.world_time < 30, "Leaving restores original solo trees and daytime without importing host night")
  print("NETWORK ", role, " failures: ", failures)
  quit(1 if failures else 0)

@@ -9,6 +9,9 @@ var wall_changes: Dictionary = {}
 var torches: Dictionary = {}
 const Torch = preload("res://scripts/torch.gd")
 var heights: PackedInt32Array = []
+const Trees = preload("res://data/trees.gd")
+var trees: Array = []
+var forest: Node2D
 
 func _ready() -> void:
  generate()
@@ -77,6 +80,12 @@ func generate() -> void:
    if not is_cave:
     solid.set_cell(Vector2i(x, y), int(Blocks.DEFINITIONS[id].get("source", 0)), Blocks.DEFINITIONS[id].atlas)
  solid.update_internals()
+ trees = Trees.generate(self)
+ if not is_instance_valid(forest):
+  forest = Node2D.new()
+  forest.name = "Forest"
+  forest.set_script(preload("res://scripts/forest.gd"))
+  add_child(forest)
 
 func spawn_position() -> Vector2:
  return Vector2((world_width / 2) * 16 + 8, 22 * 16 - 24)
@@ -138,6 +147,18 @@ func apply_edit(cell: Vector2i, block_id: int) -> void:
  else:
   solid.set_cell(cell, int(Blocks.DEFINITIONS[block_id].get("source", 0)), Blocks.DEFINITIONS[block_id].atlas)
  changes[cell] = block_id
+ if block_id == -1:
+  for tree in trees:
+   if tree.cell == cell: tree.active = false
+
+func tree_snapshot() -> Array:
+ return trees.duplicate(true)
+
+func restore_trees(records: Array) -> void:
+ trees = records.duplicate(true)
+ for tree in trees:
+  # Never restore a floating tree, including from old terrain-only saves.
+  if block_at(tree.cell) == -1: tree.active = false
 
 
 func in_reach(actor: CharacterBody2D, cell: Vector2i) -> bool:

@@ -20,6 +20,10 @@ func run() -> void:
  main.items.set_physics_process(false)
  main.player.set_physics_process(false)
  if mode in ["write", "close_write"]:
+  main.world.trees[0].height = 7
+  main.world.trees[0].form = 1
+  main.world.trees[0].seed = 10343
+  main.world.apply_edit(main.world.trees[0].cell, -1)
   main.world.apply_edit(Vector2i(96, 22), -1)
   main.world.apply_edit(Vector2i(97, 21), 2)
   main.world.apply_decoration("wall", Vector2i(98, 21), 1)
@@ -50,6 +54,8 @@ func run() -> void:
   check_result(main.items.local_inventory().count_item("stone") == 12 and main.items.local_inventory().count_item("stone_pick") == 1 and main.interaction.selected_slot == 1, "Real restart restores inventory and hotbar selection")
   check_result(main.player.health == 81 and main.player.unclothed and main.player.position == Vector2(1544, 328), "Real restart restores player health appearance and position")
   check_result(main.combat.world_time == 190 and main.combat.is_night(), "Real restart resumes night without resetting day")
+  var tree: Dictionary = main.world.trees[0]
+  check_result(not tree.active and tree.height == 7 and tree.form == 1 and tree.seed == 10343 and main.world.block_at(tree.cell) == -1, "Real restart preserves exact tree variant and removed support state")
   check_result(main.combat.entities.values()[0].health == 1 and main.combat.entities.values()[0].anchor == Vector2(1600, 384), "Real restart preserves wounded spirit and anchor")
   check_result(main.combat.chests[7].contents[0].item == "stone_blade", "Real restart retains equipment inside death chest")
  print("Restart ", mode, " failures: ", failures)

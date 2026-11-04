@@ -147,7 +147,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot())
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot())
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -181,7 +181,7 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -192,6 +192,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
   main.world.apply_decoration("wall", cell, wall_state[cell])
  for cell in torch_cells:
   main.world.apply_decoration("torch", cell, 1)
+ main.world.restore_trees(tree_state)
  main.items.inventories.clear()
  main.items.load_drops(drop_state)
  main.reset_players()

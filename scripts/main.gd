@@ -1,5 +1,6 @@
 extends Node2D
 const PlayerScene = preload("res://scenes/player.tscn")
+const Daylight = preload("res://data/daylight.gd")
 var player: CharacterBody2D
 var interaction: Node2D
 var network: Node
@@ -12,6 +13,7 @@ var close_dialog: ConfirmationDialog
 var closing := false
 var inventory_ui: CanvasLayer
 var ambient: CanvasModulate
+var sky: Control
 @onready var world = $World
 
 func _ready() -> void:
@@ -29,6 +31,14 @@ func _ready() -> void:
  combat.name = "Combat"
  combat.set_script(preload("res://scripts/combat.gd"))
  add_child(combat)
+ var sky_layer := CanvasLayer.new()
+ sky_layer.name = "SkyLayer"
+ sky_layer.layer = -100
+ add_child(sky_layer)
+ sky = Control.new()
+ sky.set_script(preload("res://scripts/sky.gd"))
+ sky.main = self
+ sky_layer.add_child(sky)
  encounter = Node2D.new()
  encounter.name = "BossEncounter"
  encounter.set_script(preload("res://scripts/boss_encounter.gd"))
@@ -179,11 +189,9 @@ func _process(_delta: float) -> void:
  var column := clampi(floori(player.position.x / 16.0), 0, world.world_width - 1)
  var depth: float = player.position.y / 16.0 - world.heights[column]
  var underground := clampf((depth - 2.0) / 13.0, 0.0, 1.0)
- var phase: float = fposmod(combat.world_time, combat.Rules.CYCLE_SECONDS)
- var night_strength := smoothstep(165.0, 185.0, phase) * (1.0 - smoothstep(225.0, 240.0, phase))
- var surface := Color("eef1e4").lerp(Color("39455e"), night_strength)
- ambient.color = surface.lerp(Color("172331"), underground)
- RenderingServer.set_default_clear_color(Color("8aabb0").lerp(Color("1c2943"), night_strength))
+ var daylight := Daylight.sample(combat.world_time)
+ ambient.color = daylight.ambient.lerp(Color("172331"), underground)
+ sky.underground = underground
 
 
 func _notification(what: int) -> void:
