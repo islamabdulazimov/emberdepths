@@ -2,8 +2,9 @@ import subprocess,time,os,tempfile
 from pathlib import Path
 import sys
 root=Path(__file__).resolve().parents[1]
+combat_mode="--combat" in sys.argv
 crafting_mode="--crafting" in sys.argv
-script="tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd"
+script="tests/network_combat_smoke.gd" if combat_mode else ("tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd")
 failed=False
 log_dir=Path(tempfile.mkdtemp(prefix="emberdepths-network-"))
 env=os.environ.copy()
@@ -15,7 +16,15 @@ def launch(role):
  processes.append((role,proc,log))
 try:
  launch('host');time.sleep(.5)
- if crafting_mode:
+ if combat_mode:
+  launch('fighter')
+  deadline=time.monotonic()+6
+  while 'DEATH_READY' not in (log_dir/'host.log').read_text():
+   if time.monotonic()>deadline:
+    raise RuntimeError('Host did not reach death fixture; logs: '+str(log_dir))
+   time.sleep(.05)
+  launch('late')
+ elif crafting_mode:
   launch('builder');time.sleep(3.0)
   launch('late')
  else:

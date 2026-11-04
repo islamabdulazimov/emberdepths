@@ -18,6 +18,9 @@ var main: Node2D
 
 func _ready() -> void:
  main = get_parent()
+ main.combat.entity_changed.connect(_entity_changed)
+ main.combat.chest_changed.connect(_chest_changed)
+ main.combat.player_changed.connect(_player_changed)
  main.items.terrain_changed.connect(_terrain_changed)
  main.items.decoration_changed.connect(_decoration_changed)
  main.items.attack_started.connect(_attack_started)
@@ -67,6 +70,7 @@ func stop(message: String = "Одиночная игра") -> void:
   return
  stopping = true
  var carried_inventory: RefCounted = main.items.local_inventory()
+ var carried_life: Dictionary = main.combat.player_data(main.player)
  var was_host := active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()
  var can_notify := active and connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
  active = false
@@ -94,6 +98,7 @@ func stop(message: String = "Одиночная игра") -> void:
  main.add_player(1, main.world.spawn_position())
  main.select_local_player(1)
  main.items.inventory_for(1).load_data(kept_inventory)
+ main.combat.apply_player_state(1, carried_life)
  status = message
  stopping = false
 
@@ -108,7 +113,7 @@ func _peer_joined(id: int) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys())
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true))
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -147,7 +152,7 @@ func _peer_left(id: int, taking_inventory: bool = false) -> void:
  targets.erase(id)
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -165,6 +170,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
   main.add_player(id, roster[id])
  main.select_local_player(multiplayer.get_unique_id())
  main.items.local_inventory().load_data(inventory_data)
+ main.combat.apply_snapshot(combat_state)
  connected = true
  status = "Подключён · игроков: %d/4" % roster.size()
 
@@ -213,6 +219,10 @@ func _physics_process(delta: float) -> void:
   var id := int(str(body.name))
   if not commands.has(id):
    continue
+  if body.dead:
+   body.submit_command(0.0, false)
+   mining.erase(id)
+   continue
   var command: Dictionary = commands[id]
   if Time.get_ticks_msec() - int(last_input[id]) > 500:
    command.axis = 0.0
@@ -246,21 +256,22 @@ func _physics_process(delta: float) -> void:
   snapshot_clock = 0.0
   var state: Dictionary = {}
   for body in main.get_node("Players").get_children():
-   state[int(str(body.name))] = [body.position, body.velocity, body.facing]
+   state[int(str(body.name))] = [body.position, body.velocity, body.facing, body.life_revision]
   var drop_positions: Dictionary = {}
   for id in main.items.drops:
    drop_positions[id] = main.items.drops[id].position
-  sync_positions.rpc(state, drop_positions)
+  sync_positions.rpc(state, drop_positions, main.combat.motion_snapshot())
 
 @rpc("authority", "call_remote", "reliable", 0)
 func terrain_edit(cell: Vector2i, block_id: int) -> void:
  main.world.apply_edit(cell, block_id)
 
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
-func sync_positions(state: Dictionary, drop_positions: Dictionary) -> void:
+func sync_positions(state: Dictionary, drop_positions: Dictionary, combat_motion: Dictionary) -> void:
  if not connected:
   return
  targets = state
+ main.combat.apply_motion(combat_motion)
  for id in drop_positions:
   if main.items.drops.has(id):
    main.items.drops[id].position = drop_positions[id]
@@ -270,7 +281,7 @@ func _process(delta: float) -> void:
   return
  for id in targets:
   var body = main.get_node("Players").get_node_or_null(str(id))
-  if body == null:
+  if body == null or body.life_revision != int(targets[id][3]):
    continue
   body.position = body.position.lerp(targets[id][0], minf(1.0, delta * 22.0))
   body.velocity = targets[id][1]
@@ -326,13 +337,13 @@ func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
 
 func _attack_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server():
-  sync_attack.rpc(id, direction)
+  sync_attack.rpc(id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false)))
 
 @rpc("authority", "call_remote", "reliable", 0)
-func sync_attack(id: int, direction: Vector2) -> void:
+func sync_attack(id: int, direction: Vector2, unarmed: bool) -> void:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body != null:
-  body.play_swing(direction)
+  body.play_swing(direction, unarmed)
 
 func craft_local(recipe_id: String) -> void:
  if not connected or stopping:
@@ -354,3 +365,29 @@ func request_craft(recipe_id: String) -> void:
 @rpc("authority", "call_remote", "reliable", 0)
 func craft_feedback(message: String) -> void:
  main.inventory_ui.show_craft_result(message)
+
+
+func _entity_changed(id: int, data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_entity.rpc(id, data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_entity(id: int, data: Dictionary) -> void:
+ main.combat.set_entity(id, data)
+
+func _chest_changed(id: int, data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_chest.rpc(id, data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_chest(id: int, data: Dictionary) -> void:
+ main.combat.set_chest(id, data)
+
+func _player_changed(id: int, data: Dictionary) -> void:
+ if active and connected and multiplayer.is_server():
+  sync_life.rpc(id, data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func sync_life(id: int, data: Dictionary) -> void:
+ main.combat.apply_player_state(id, data)
+ targets.erase(id)

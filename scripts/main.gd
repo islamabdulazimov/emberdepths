@@ -4,6 +4,7 @@ var player: CharacterBody2D
 var interaction: Node2D
 var network: Node
 var items: Node2D
+var combat: Node2D
 var inventory_ui: CanvasLayer
 var ambient: CanvasModulate
 @onready var world = $World
@@ -19,6 +20,10 @@ func _ready() -> void:
  items.name = "Items"
  items.set_script(preload("res://scripts/item_service.gd"))
  add_child(items)
+ combat = Node2D.new()
+ combat.name = "Combat"
+ combat.set_script(preload("res://scripts/combat.gd"))
+ add_child(combat)
  network = Node.new()
  network.name = "Network"
  network.set_script(preload("res://scripts/network.gd"))
@@ -130,8 +135,7 @@ func _physics_process(_delta: float) -> void:
   for body in $Players.get_children():
    body.position.x = clampf(body.position.x, 6.0, world.world_width * 16.0 - 6.0)
    if body.position.y > world.world_depth * 16 + 64:
-    body.position = world.spawn_position()
-    body.velocity = Vector2.ZERO
+    combat.damage_player(int(str(body.name)), 10000, body.position, true)
 
 func _bind_key(action: String, code: Key) -> void:
  if not InputMap.has_action(action):
@@ -148,4 +152,8 @@ func _process(_delta: float) -> void:
  var column := clampi(floori(player.position.x / 16.0), 0, world.world_width - 1)
  var depth: float = player.position.y / 16.0 - world.heights[column]
  var underground := clampf((depth - 2.0) / 13.0, 0.0, 1.0)
- ambient.color = Color("eef1e4").lerp(Color("172331"), underground)
+ var phase: float = fposmod(combat.world_time, combat.Rules.CYCLE_SECONDS)
+ var night_strength := smoothstep(165.0, 185.0, phase) * (1.0 - smoothstep(225.0, 240.0, phase))
+ var surface := Color("eef1e4").lerp(Color("39455e"), night_strength)
+ ambient.color = surface.lerp(Color("172331"), underground)
+ RenderingServer.set_default_clear_color(Color("8aabb0").lerp(Color("1c2943"), night_strength))

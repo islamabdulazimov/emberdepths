@@ -87,7 +87,7 @@ func toggle() -> void:
  refresh()
 
 func _click_slot(index: int) -> void:
- if main.network.stopping:
+ if main.network.stopping or main.player.dead:
   return
  var inventory = main.items.local_inventory()
  if source_slot == -1:
@@ -124,7 +124,7 @@ func refresh() -> void:
   button.text = "%s ×%d\n%s" % [Items.DEFINITIONS[recipe.output].name, recipe.count, " · ".join(ingredients)]
   var status: String = inventory.craft_preview(recipe_id).status
   button.tooltip_text = status + "\n" + " · ".join(ingredients)
-  button.disabled = status != "Можно создать" or main.network.stopping or (main.network.active and not main.network.connected)
+  button.disabled = status != "Можно создать" or main.player.dead or main.network.stopping or (main.network.active and not main.network.connected)
  for i in range(30):
   _paint(bag_buttons[i], inventory.slots[i], str(i + 1), i == source_slot)
 
@@ -142,7 +142,7 @@ func _paint(button: Button, slot: Dictionary, number: String, selected: bool) ->
 
 
 func _craft(recipe_id: String) -> void:
- if main.network.stopping:
+ if main.network.stopping or main.player.dead:
   return
  if main.network.active:
   main.network.craft_local(recipe_id)

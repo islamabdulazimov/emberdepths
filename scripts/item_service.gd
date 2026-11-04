@@ -13,6 +13,7 @@ var inventories: Dictionary = {}
 var drops: Dictionary = {}
 var next_drop_id := 1
 var attack_ready_at: Dictionary = {}
+var attack_profiles: Dictionary = {}
 var main: Node2D
 
 func _ready() -> void:
@@ -28,12 +29,14 @@ func local_inventory() -> RefCounted:
  return inventory_for(id)
 
 func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Array, slot: int = -1) -> bool:
+ if body.dead:
+  return false
  var id := int(str(body.name))
  var inventory = inventory_for(id)
  var previous: int = main.world.block_at(cell)
  if block_id != -1 and (slot < 0 or slot >= Inventory.HOTBAR_COUNT or inventory.block_in_slot(slot) != block_id):
   return false
- if block_id != -1 and main.world.torches.has(cell):
+ if block_id != -1 and (main.world.torches.has(cell) or main.combat.chest_at(cell) != -1):
   return false
  if not main.world.request_edit(body, cell, block_id, bodies):
   return false
@@ -89,6 +92,9 @@ func load_drops(data: Dictionary) -> void:
   set_drop(id, data[id])
 
 func transfer(id: int, source: int, destination: int) -> bool:
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body == null or body.dead:
+  return false
  var inventory = inventory_for(id)
  if not inventory.transfer(source, destination):
   return false
@@ -123,6 +129,8 @@ func _physics_process(delta: float) -> void:
   var candidates: Array = main.get_node("Players").get_children()
   candidates.sort_custom(func(a, b): return a.position.distance_squared_to(drop.position) < b.position.distance_squared_to(drop.position))
   for body in candidates:
+   if body.dead:
+    continue
    if (body.position + Vector2(0, -4)).distance_to(drop.position) > PICKUP_RADIUS:
     continue
    var player_id := int(str(body.name))
@@ -145,8 +153,18 @@ func selected_definition(body: CharacterBody2D, slot: int) -> Dictionary:
 
 func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  var kind: String = selected_definition(body, slot).get("kind", "")
+ if body.dead:
+  return "Вы погибли"
  if kind == "weapon":
   return "ЛКМ — удар клинком"
+ if main.combat.chest_at(cell) != -1:
+  if not main.world.in_reach(body, cell):
+   return "Сундук слишком далеко"
+  var chest_id: int = main.combat.chest_at(cell)
+  return "Можно разбить сундук" if main.combat.line_clear(body.position + Vector2(0, -5), main.combat.chests[chest_id].position) else "Сундук за преградой"
+ if kind == "" and main.combat.enemy_at(cell) != -1:
+  var enemy = main.combat.entities[main.combat.enemy_at(cell)]
+  return "Можно ударить кулаком" if body.position.distance_to(enemy.position) <= 29 else "Враг слишком далеко"
  if kind == "wall":
   return main.world.decoration_status(body, cell, "wall", false)
  if main.world.torches.has(cell):
@@ -155,6 +173,10 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
 
 func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float:
  var definition := selected_definition(body, slot)
+ if main.combat.chest_at(cell) != -1:
+  return 0.6
+ if definition.is_empty() and main.combat.enemy_at(cell) != -1:
+  return 0.01
  if definition.get("kind", "") == "wall":
   return 0.25
  if main.world.torches.has(cell) and definition.get("kind", "") != "wall":
@@ -169,17 +191,27 @@ func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> Strin
  var kind: String = definition.get("kind", "")
  if kind in ["wall", "torch"]:
   return main.world.decoration_status(body, cell, kind, true)
+ if body.dead:
+  return "Вы погибли"
  if kind == "solid":
+  if main.combat.chest_at(cell) != -1:
+   return "Здесь сундук вещей"
   if main.world.torches.has(cell):
    return "Сначала сними факел"
   return main.world.interaction_status(body, cell, true, main.get_node("Players").get_children())
  return "Этот слот не для строительства"
 
 func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
+ if body.dead:
+  return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
  if kind == "weapon":
   return swing(body, slot, main.world.cell_center(cell) - body.position)
+ if main.combat.chest_at(cell) != -1:
+  return main.combat.break_chest(body, cell)
+ if kind == "" and main.combat.enemy_at(cell) != -1:
+  return punch(body, main.world.cell_center(cell) - body.position)
  if kind != "wall" and main.world.torches.has(cell):
   kind = "torch"
  if kind == "wall" or (kind == "torch" and main.world.torches.has(cell)):
@@ -197,7 +229,7 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  return try_edit(body, cell, -1, main.get_node("Players").get_children())
 
 func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
- if slot < 0 or slot >= Inventory.HOTBAR_COUNT:
+ if body.dead or slot < 0 or slot >= Inventory.HOTBAR_COUNT:
   return false
  var definition := selected_definition(body, slot)
  var kind: String = definition.get("kind", "")
@@ -224,6 +256,9 @@ func _check_torch_support() -> void:
    spawn_drop("torch", 1, main.world.cell_center(cell))
 
 func craft(id: int, recipe_id: String) -> String:
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body == null or body.dead:
+  return "Нельзя создавать предметы после смерти"
  var inventory = inventory_for(id)
  var status: String = inventory.craft_preview(recipe_id).status
  if status != "Можно создать":
@@ -236,7 +271,7 @@ func craft(id: int, recipe_id: String) -> String:
 
 func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
  var definition := selected_definition(body, slot)
- if definition.get("kind", "") != "weapon":
+ if body.dead or definition.get("kind", "") != "weapon":
   return false
  var id := int(str(body.name))
  var now := Time.get_ticks_msec()
@@ -244,6 +279,22 @@ func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
   return false
  attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
+ attack_profiles[id] = {"damage": definition.damage, "reach": definition.reach, "unarmed": false}
  body.play_swing(aim)
+ attack_started.emit(id, aim)
+ return true
+
+
+func punch(body: CharacterBody2D, direction: Vector2) -> bool:
+ if body.dead:
+  return false
+ var id := int(str(body.name))
+ var now := Time.get_ticks_msec()
+ if now < int(attack_ready_at.get(id, 0)):
+  return false
+ attack_ready_at[id] = now + 550
+ attack_profiles[id] = {"damage": 6, "reach": 22.0, "unarmed": true}
+ var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
+ body.play_swing(aim, true)
  attack_started.emit(id, aim)
  return true

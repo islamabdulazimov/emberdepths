@@ -33,7 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
    selected_slot = (selected_slot + 1) % 10
 
 func can_use_mouse() -> bool:
- return not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
+ return is_instance_valid(player) and not player.dead and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
 
 func _process(delta: float) -> void:
  if not is_instance_valid(player):
@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
  var status := primary if world.block_at(selected_cell) != -1 or kind == "weapon" else placement
  if kind == "wall" and world.wall_at(selected_cell) != -1:
   status = primary
- if world.torches.has(selected_cell):
+ if world.torches.has(selected_cell) or get_parent().combat.chest_at(selected_cell) != -1 or (kind == "" and get_parent().combat.enemy_at(selected_cell) != -1):
   status = primary
  outline_color = Color("a9e89b") if status.begins_with("Можно") else Color("e97b77")
  if kind == "weapon":
@@ -78,7 +78,16 @@ func _process(delta: float) -> void:
    build_cooldown = 0.18
  if get_parent().inventory_ui.opened:
   status = "Инвентарь и крафт открыты"
- label.text = "EMBERDEPTHS · ЭТАП 4 · Seed: %d\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s · Прогресс пока не сохраняется" % [world.world_seed, definition.get("name", "Пустой слот"), status]
+ var combat = get_parent().combat
+ var health_text := "HP %d/100" % player.health
+ if player.dead:
+  health_text = "Вы погибли · Возрождение %.1f с" % player.respawn_remaining
+ var grave_text := ""
+ if player.last_chest_position.x >= 0:
+  var grave: Vector2i = world.cell_at(player.last_chest_position)
+  grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
+ var location: Vector2i = world.cell_at(player.position)
+ label.text = "%s · %s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s · Сохранений пока нет" % [health_text, combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
  queue_redraw()
 
 func _draw() -> void:
