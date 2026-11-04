@@ -8,6 +8,6 @@ const ANDREW := {
  "spin_windup": 0.85, "spin_active": 0.4, "spin_recovery": 1.05,
  "spin_damage": 25, "spin_radius": 62.0,
  "super_windup": 1.25, "super_flight": 0.9, "super_recovery": 1.5,
- "super_damage": 34, "super_radius": 48.0, "super_jump": -330.0,
+ "super_height": 40.0, "super_damage": 34, "super_radius": 48.0,
  "between_attacks": 0.8, "chase_timeout": 2.5,
 }

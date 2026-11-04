@@ -41,7 +41,7 @@ func register_kill(kind: String) -> void:
  if not authoritative() or kind != "ashling": return
  kills += 1
  if kills >= 3 and not used_once: pending = true
- notice = "Пепельники: %d/3" % mini(kills, 3)
+ if not used_once: notice = "Пепельники: %d/3" % mini(kills, 3)
  publish()
 
 func _find_spawn(players: Array) -> Variant:
