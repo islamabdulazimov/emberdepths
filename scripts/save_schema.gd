@@ -1,0 +1,115 @@
+extends RefCounted
+const Items = preload("res://data/items.gd")
+const Blocks = preload("res://data/blocks.gd")
+const Rules = preload("res://data/combat_rules.gd")
+
+static func integer(value: Variant, low: int, high: int) -> bool:
+ return (value is int or value is float) and is_finite(float(value)) and value == floor(value) and value >= low and value <= high
+
+static func scalar(value: Variant, low: float, high: float) -> bool:
+ return (value is int or value is float) and is_finite(float(value)) and value >= low and value <= high
+
+static func hex_id(value: Variant, size: int) -> bool:
+ if not value is String or value.length() != size:
+  return false
+ for character in value:
+  if not character in "0123456789abcdef":
+   return false
+ return true
+
+static func inventory(value: Variant) -> bool:
+ if not value is Array or value.size() != 30:
+  return false
+ for slot in value:
+  if not slot is Dictionary or not slot.has_all(["item", "count"]) or not slot.item is String:
+   return false
+  if slot.item == "":
+   if slot.count != 0:
+    return false
+  elif not Items.DEFINITIONS.has(slot.item) or not integer(slot.count, 1, Items.stack_limit(slot.item)):
+   return false
+ return true
+
+static func point(value: Variant, width: int, depth: int) -> bool:
+ return value is Vector2 and is_finite(value.x) and is_finite(value.y) and value.x >= -64 and value.x <= width * 16 + 64 and value.y >= -128 and value.y <= depth * 16 + 128
+
+static func velocity(value: Variant) -> bool:
+ return value is Vector2 and is_finite(value.x) and is_finite(value.y) and absf(value.x) <= 2000 and absf(value.y) <= 2000
+
+static func cell(value: Variant, width: int, depth: int) -> bool:
+ return value is Vector2i and value.x >= 0 and value.x < width and value.y >= 0 and value.y < depth
+
+static func life(value: Variant, width: int, depth: int) -> bool:
+ if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
+  return false
+ if not integer(value.health, 0, 100) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
+  return false
+ if not scalar(value.immunity, 0, 10) or not scalar(value.respawn, -1, 10) or not integer(value.revision, 0, 1000000000):
+  return false
+ if not point(value.position, width, depth) or not velocity(value.velocity) or not point(value.last_chest, width, depth):
+  return false
+ return scalar(value.since_hurt, 0, 1e12) and scalar(value.regen_fraction, 0, 1) and scalar(value.knockback, 0, 2) and hex_id(value.profile, 32)
+
+static func validate(value: Variant) -> String:
+ if not value is Dictionary or not value.has_all(["format", "generator", "host_profile", "world", "profiles", "drops", "combat", "next_drop"]):
+  return "Неполное сохранение"
+ if value.format != 1 or value.generator != 1:
+  return "Неподдерживаемая версия сохранения или генератора"
+ var world: Variant = value.world
+ if not world is Dictionary or not world.has_all(["seed", "width", "depth", "blocks", "walls", "torches"]):
+  return "Неполный мир"
+ if not integer(world.seed, -2147483648, 2147483647) or not integer(world.width, 32, 512) or not integer(world.depth, 32, 256):
+  return "Неверные параметры мира"
+ var width := int(world.width)
+ var depth := int(world.depth)
+ if not world.blocks is Dictionary or not world.walls is Dictionary or not world.torches is Array or world.blocks.size() > width * depth or world.walls.size() > width * depth or world.torches.size() > 2048:
+  return "Слишком большой или неверный журнал мира"
+ for position in world.blocks:
+  if not cell(position, width, depth) or not integer(world.blocks[position], -1, 3) or (world.blocks[position] != -1 and not Blocks.DEFINITIONS.has(world.blocks[position])):
+   return "Неверный блок в журнале"
+ for position in world.walls:
+  if not cell(position, width, depth) or not integer(world.walls[position], -1, 2) or not world.walls[position] in [-1, 1, 2]:
+   return "Неверная стена в журнале"
+ var torch_cells: Dictionary = {}
+ for position in world.torches:
+  if not cell(position, width, depth) or torch_cells.has(position):
+   return "Неверный факел в журнале"
+  torch_cells[position] = true
+ if not value.profiles is Dictionary or value.profiles.is_empty() or value.profiles.size() > 64 or not value.profiles.has(value.host_profile):
+  return "Неверные персонажи"
+ for id in value.profiles:
+  var record: Variant = value.profiles[id]
+  if not hex_id(id, 32) or not record is Dictionary or not record.has_all(["key_hash", "inventory", "life", "selected"]):
+   return "Неверная запись персонажа"
+  if not hex_id(record.key_hash, 64) or not inventory(record.inventory) or not life(record.life, width, depth) or record.life.profile != id or not integer(record.selected, 0, 9):
+   return "Неверное состояние персонажа"
+ if not value.drops is Dictionary or value.drops.size() > 4096 or not integer(value.next_drop, 1, 1000000000):
+  return "Неверные выпавшие предметы"
+ for id in value.drops:
+  var drop: Variant = value.drops[id]
+  if not integer(id, 1, int(value.next_drop) - 1) or not drop is Dictionary or not drop.has_all(["item", "count", "position", "velocity", "age"]):
+   return "Неполный выпавший предмет"
+  if not Items.DEFINITIONS.has(drop.item) or not integer(drop.count, 1, Items.stack_limit(drop.item)) or not point(drop.position, width, depth) or not velocity(drop.velocity) or not scalar(drop.age, 0, 1e12):
+   return "Неверный выпавший предмет"
+ var combat: Variant = value.combat
+ if not combat is Dictionary or not combat.has_all(["time", "entities", "chests", "players", "spawn_timer", "spawn_sequence", "next_entity", "next_chest"]):
+  return "Неполное состояние опасностей"
+ if not scalar(combat.time, 0, 1e12) or not scalar(combat.spawn_timer, -1, 60) or not integer(combat.spawn_sequence, 0, 1000000000) or not integer(combat.next_entity, 1, 1000000000) or not integer(combat.next_chest, 1, 1000000000):
+  return "Неверные часы или спавн"
+ if not combat.entities is Dictionary or combat.entities.size() > 256 or not combat.chests is Dictionary or combat.chests.size() > 512 or not combat.players is Dictionary or not combat.players.is_empty():
+  return "Неверные существа или сундуки"
+ for id in combat.entities:
+  var entity: Variant = combat.entities[id]
+  if not integer(id, 1, int(combat.next_entity) - 1) or not entity is Dictionary or not entity.has_all(["kind", "position", "velocity", "health", "anchor", "grace", "clock", "hit_stun"]):
+   return "Неполное существо"
+  if not Rules.ENEMIES.has(entity.kind) or not integer(entity.health, 1, Rules.ENEMIES[entity.kind].health) or not point(entity.position, width, depth) or not point(entity.anchor, width, depth) or not velocity(entity.velocity) or not scalar(entity.grace, 0, 2) or not scalar(entity.clock, 0, 1e12) or not scalar(entity.hit_stun, 0, 1):
+   return "Неверное существо"
+  if entity.kind == "spirit" and entity.position.distance_to(entity.anchor) > 160.1:
+   return "Дух вне радиуса сундука"
+ for id in combat.chests:
+  var chest: Variant = combat.chests[id]
+  if not integer(id, 1, int(combat.next_chest) - 1) or not chest is Dictionary or not chest.has_all(["position", "owner", "profile", "contents"]):
+   return "Неполный сундук"
+  if not point(chest.position, width, depth) or not integer(chest.owner, 1, 2147483647) or not hex_id(chest.profile, 32) or not inventory(chest.contents):
+   return "Неверный сундук"
+ return ""

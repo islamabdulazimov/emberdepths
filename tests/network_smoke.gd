@@ -19,7 +19,7 @@ func run() -> void:
  main.interaction.set_process(false)
  if role == "host":
   # Test fixture only: grant remote players two stones, through host inventory.
-  main.multiplayer.peer_connected.connect(func(id):
+  main.network.peer_admitted.connect(func(id):
    main.items.inventory_for(id).add("stone", 2)
    main.items.inventory_changed.emit(id))
   check_result(main.network.host_game() == OK, "Host opens ENet server")
@@ -118,7 +118,7 @@ func run() -> void:
   var world_before: Dictionary = main.items.snapshot()
   main.network.stop()
   await create_timer(0.4).timeout
-  check_result(main.items.local_inventory().to_data() == before_leave, "Leaving session preserves local inventory")
-  check_result(main.items.drops.size() == world_before.size(), "Graceful exit does not duplicate carried items as drops")
+  check_result(main.items.local_inventory().count_item("stone") == 0 and before_leave[0].count == 2, "Leaving returns to original solo inventory without importing server items")
+  check_result(main.items.drops.is_empty() and not world_before.is_empty(), "Leaving restores original solo world without copying server drops")
  print("NETWORK ", role, " failures: ", failures)
  quit(1 if failures else 0)

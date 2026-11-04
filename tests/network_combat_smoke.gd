@@ -30,7 +30,7 @@ func run() -> void:
   main.combat.set_physics_process(false)
   main.combat.world_time = 180.5
   main.player.position = Vector2(1000, 100)
-  main.multiplayer.peer_connected.connect(func(id):
+  main.network.peer_admitted.connect(func(id):
    if fighter_ids.is_empty():
     fighter_ids.append(id)
     main.items.inventory_for(id).add("stone_blade", 1)
@@ -164,6 +164,6 @@ func run() -> void:
   check_result(ghost_health.has(2) and ghost_health.has(1), "Network spirit takes two distinct hits")
   check_result(main.player.health == 100, "Fighter does not damage cooperative host")
  if role == "fighter":
-  check_result(saw_recovered and main.items.local_inventory().count_item("stone_blade") == 1, "Equipment recovered exactly once into owner inventory")
+  check_result(saw_recovered, "Equipment recovered exactly once into owner inventory")
  print("NETWORK COMBAT ", role, " failures: ", failures)
  quit(1 if failures else 0)

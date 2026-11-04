@@ -12,7 +12,8 @@ env.update(XDG_DATA_HOME=str(log_dir/'data'), XDG_CONFIG_HOME=str(log_dir/'confi
 processes=[]
 def launch(role):
  log=(log_dir/(role+'.log')).open('w')
- proc=subprocess.Popen(['godot','--headless','--path',str(root),'--script',script,'--',role],stdout=log,stderr=subprocess.STDOUT,env=env)
+ proc=subprocess.Popen(['godot','--headless','--path',str(root),'--script',script,'--',role],stdout=log,stderr=subprocess.STDOUT,env=dict(env, XDG_DATA_HOME=str(log_dir/role/'data')))
+
  processes.append((role,proc,log))
 try:
  launch('host');time.sleep(.5)

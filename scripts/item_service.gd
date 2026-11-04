@@ -73,11 +73,13 @@ func set_drop(id: int, data: Dictionary) -> void:
   drops[id] = drop
  drops[id].count = data.count
  drops[id].position = data.position
+ drops[id].velocity = data.get("velocity", Vector2.ZERO)
+ drops[id].age = data.get("age", 0.0)
  next_drop_id = maxi(next_drop_id, id + 1)
 
 func drop_data(id: int) -> Dictionary:
  var drop = drops[id]
- return {"item": drop.item_id, "count": drop.count, "position": drop.position}
+ return {"item": drop.item_id, "count": drop.count, "position": drop.position, "velocity": drop.velocity, "age": drop.age}
 
 func snapshot() -> Dictionary:
  var result: Dictionary = {}

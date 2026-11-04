@@ -45,7 +45,7 @@ func spawn_entity(kind: String, at: Vector2, anchor: Vector2 = Vector2.ZERO) -> 
 
 func entity_data(id: int) -> Dictionary:
  var body = entities[id]
- return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "anchor": body.anchor, "grace": body.grace}
+ return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun}
 
 func set_entity(id: int, data: Dictionary) -> void:
  if data.is_empty():
@@ -70,11 +70,13 @@ func set_entity(id: int, data: Dictionary) -> void:
  body.velocity = data.velocity
  body.anchor = data.anchor
  body.grace = data.get("grace", 0.0)
+ body.clock = data.get("clock", 0.0)
+ body.hit_stun = data.get("hit_stun", 0.0)
  next_entity_id = maxi(next_entity_id, id + 1)
 
 func chest_data(id: int, include_contents: bool = false) -> Dictionary:
  var chest = chests[id]
- var data := {"position": chest.position, "owner": chest.owner_id}
+ var data := {"position": chest.position, "owner": chest.owner_id, "profile": chest.owner_profile}
  if include_contents:
   data["contents"] = chest.contents.duplicate(true)
  return data
@@ -93,6 +95,7 @@ func set_chest(id: int, data: Dictionary) -> void:
   chests[id] = chest
  chests[id].position = data.position
  chests[id].owner_id = data.owner
+ chests[id].owner_profile = data.get("profile", "")
  chests[id].contents = data.get("contents", []).duplicate(true)
  next_chest_id = maxi(next_chest_id, id + 1)
 
@@ -114,13 +117,17 @@ func line_clear(from: Vector2, to: Vector2) -> bool:
  return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 func player_data(body: CharacterBody2D) -> Dictionary:
- return {"health": body.health, "dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position}
+ return {"health": body.health, "dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining}
 
 func apply_player_state(id: int, data: Dictionary) -> void:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null:
   return
  var changed_life: bool = body.life_revision != int(data.revision)
+ body.profile_id = data.get("profile", body.profile_id)
+ body.since_hurt = data.get("since_hurt", 0.0)
+ body.regen_fraction = data.get("regen_fraction", 0.0)
+ body.knockback_remaining = data.get("knockback", 0.0)
  body.health = data.health
  body.dead = data.dead
  body.unclothed = data.unclothed
@@ -170,7 +177,7 @@ func _kill(body: CharacterBody2D) -> void:
  at.x = clampf(at.x, 8.0, main.world.world_width * 16 - 8)
  at.y = clampf(at.y, 16.0, main.world.world_depth * 16 - 16)
  var inventory = main.items.inventory_for(id)
- set_chest(chest_id, {"owner": id, "position": at, "contents": inventory.to_data()})
+ set_chest(chest_id, {"owner": id, "profile": body.profile_id, "position": at, "contents": inventory.to_data()})
  inventory.load_data([])
  main.items.inventory_changed.emit(id)
  body.last_chest_position = at

@@ -5,6 +5,9 @@ var interaction: Node2D
 var network: Node
 var items: Node2D
 var combat: Node2D
+var saves: Node
+var close_dialog: ConfirmationDialog
+var closing := false
 var inventory_ui: CanvasLayer
 var ambient: CanvasModulate
 @onready var world = $World
@@ -24,6 +27,10 @@ func _ready() -> void:
  combat.name = "Combat"
  combat.set_script(preload("res://scripts/combat.gd"))
  add_child(combat)
+ saves = Node.new()
+ saves.name = "Saves"
+ saves.set_script(preload("res://scripts/save_service.gd"))
+ add_child(saves)
  network = Node.new()
  network.name = "Network"
  network.set_script(preload("res://scripts/network.gd"))
@@ -42,6 +49,8 @@ func _ready() -> void:
  inventory_ui.set_script(preload("res://scripts/inventory_ui.gd"))
  add_child(inventory_ui)
  _create_network_ui()
+ saves.startup()
+ get_tree().auto_accept_quit = false
  for arg in OS.get_cmdline_user_args():
   if arg == "--host":
    network.host_game()
@@ -53,6 +62,8 @@ func add_player(id: int, position_value: Vector2) -> void:
   return
  var body = PlayerScene.instantiate()
  body.name = str(id)
+ if id == 1 and is_instance_valid(saves):
+  body.profile_id = saves.profile_id
  $Players.add_child(body)
  items.inventory_for(id)
  body.position = position_value
@@ -157,3 +168,27 @@ func _process(_delta: float) -> void:
  var surface := Color("eef1e4").lerp(Color("39455e"), night_strength)
  ambient.color = surface.lerp(Color("172331"), underground)
  RenderingServer.set_default_clear_color(Color("8aabb0").lerp(Color("1c2943"), night_strength))
+
+
+func _notification(what: int) -> void:
+ if what == NOTIFICATION_WM_CLOSE_REQUEST:
+  _request_close()
+
+func _request_close() -> void:
+ if closing:
+  return
+ closing = true
+ if saves.can_save() and not saves.save_now():
+  closing = false
+  if close_dialog == null:
+   close_dialog = ConfirmationDialog.new()
+   close_dialog.title = "Не удалось сохранить"
+   close_dialog.ok_button_text = "Выйти без сохранения"
+   close_dialog.confirmed.connect(func(): get_tree().quit())
+   $HUD.add_child(close_dialog)
+  close_dialog.dialog_text = saves.status + "\nЗакрыть игру без сохранения?"
+  close_dialog.popup_centered()
+  return
+ if network.active:
+  await network.stop()
+ get_tree().quit()

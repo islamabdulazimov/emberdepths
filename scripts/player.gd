@@ -11,6 +11,7 @@ var elapsed := 0.0
 var swing_remaining := 0.0
 var swing_direction := Vector2.RIGHT
 var swing_unarmed := false
+var profile_id := ""
 var health := 100
 var dead := false
 var unclothed := false

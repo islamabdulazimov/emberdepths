@@ -87,7 +87,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s · %s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s · Сохранений пока нет" % [health_text, combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
+ label.text = "%s · %s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — размещение\n1–0 / колесо — слот · Esc — инвентарь и крафт\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text, combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
  queue_redraw()
 
 func _draw() -> void:

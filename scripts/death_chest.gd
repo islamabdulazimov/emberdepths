@@ -1,5 +1,6 @@
 extends Node2D
 var owner_id := 1
+var owner_profile := ""
 var contents: Array = []
 var clock := 0.0
 

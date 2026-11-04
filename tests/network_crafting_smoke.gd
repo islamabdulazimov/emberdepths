@@ -24,7 +24,7 @@ func run() -> void:
  main.interaction.set_process(false)
  var fixture_given := false
  if role == "host":
-  main.multiplayer.peer_connected.connect(func(id):
+  main.network.peer_admitted.connect(func(id):
    if not fixture_given:
     fixture_given = true
     var inventory = main.items.inventory_for(id)

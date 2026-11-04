@@ -1,4 +1,6 @@
 extends Node
+signal peer_admitted(id: int)
+signal profile_rejected(id: int, reason: String)
 # Authoritative host: clients send intentions, never positions or terrain edits.
 const PORT := 24567
 const MAX_PLAYERS := 4
@@ -6,6 +8,8 @@ var stopping := false
 var active := false
 var connected := false
 var status := "Одиночная игра"
+var pending: Dictionary = {}
+var rejection := ""
 var commands: Dictionary = {}
 var mining: Dictionary = {}
 var cooldowns: Dictionary = {}
@@ -28,11 +32,14 @@ func _ready() -> void:
  main.items.drop_changed.connect(_drop_changed)
  multiplayer.peer_connected.connect(_peer_joined)
  multiplayer.peer_disconnected.connect(_peer_left)
- multiplayer.connected_to_server.connect(func(): status = "Получение мира…")
+ multiplayer.connected_to_server.connect(_send_identity)
  multiplayer.connection_failed.connect(func(): stop("Не удалось подключиться"))
- multiplayer.server_disconnected.connect(func(): stop("Хост отключился. Возврат в одиночную игру"))
+ multiplayer.server_disconnected.connect(func(): stop(rejection if rejection != "" else "Хост отключился. Возврат в свой мир"))
 
 func host_game(port: int = PORT) -> Error:
+ if main.saves.identity_error != "":
+  status = main.saves.identity_error
+  return ERR_CANT_CREATE
  if active or stopping:
   return ERR_ALREADY_IN_USE
  var peer := ENetMultiplayerPeer.new()
@@ -52,6 +59,10 @@ func join_game(address: String, port: int = PORT) -> Error:
  if address.strip_edges().is_empty():
   status = "Введите IP хоста"
   return ERR_INVALID_PARAMETER
+ if not main.saves.begin_visit():
+  status = main.saves.status
+  return ERR_CANT_CREATE
+ rejection = ""
  var peer := ENetMultiplayerPeer.new()
  var err := peer.create_client(address.strip_edges(), port)
  if err != OK:
@@ -69,55 +80,77 @@ func stop(message: String = "Одиночная игра") -> void:
  if stopping:
   return
  stopping = true
- var carried_inventory: RefCounted = main.items.local_inventory()
- var carried_life: Dictionary = main.combat.player_data(main.player)
  var was_host := active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()
  var can_notify := active and connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+ if was_host:
+  for peer_id in main.saves.peer_profiles.keys():
+   if peer_id != 1:
+    main.saves.detach_peer(peer_id)
+    main.remove_player(peer_id)
  active = false
  connected = false
- if can_notify and not multiplayer.is_server():
+ if can_notify and not was_host:
   request_leave.rpc_id(1)
-  # Keep polling long enough to flush the reliable leave request.
   await get_tree().create_timer(0.15).timeout
  multiplayer.multiplayer_peer.close()
  multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+ pending.clear()
  commands.clear()
  mining.clear()
  cooldowns.clear()
  last_input.clear()
  targets.clear()
- var kept_inventory: Array = carried_inventory.to_data()
- # On return to solo, preserve local inventory; release other inventories once.
- if was_host:
-  for id in main.items.inventories.keys():
-   if id != 1:
-    var body = main.get_node("Players").get_node_or_null(str(id))
-    main.items.retire_player(id, body.position if body != null else main.world.spawn_position())
- main.items.inventories.clear()
- main.reset_players()
- main.add_player(1, main.world.spawn_position())
- main.select_local_player(1)
- main.items.inventory_for(1).load_data(kept_inventory)
- main.combat.apply_player_state(1, carried_life)
+ if not was_host:
+  main.saves.end_visit()
  status = message
  stopping = false
+ if was_host:
+  main.saves.checkpoint()
 
-func _peer_joined(id: int) -> void:
+func _send_identity() -> void:
+ status = "Восстановление персонажа…"
+ register_profile.rpc_id(1, main.saves.profile_id, main.saves.profile_key)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func register_profile(profile_id: String, key: String) -> void:
  if not multiplayer.is_server():
   return
+ var peer_id := multiplayer.get_remote_sender_id()
+ if not pending.has(peer_id) or main.get_node("Players").has_node(str(peer_id)):
+  return
+ var error: String = main.saves.authorize(profile_id, key)
+ if error != "":
+  profile_rejected.emit(peer_id, error)
+  deny_profile.rpc_id(peer_id, error)
+  return
+ pending.erase(peer_id)
+ _admit_peer(peer_id, profile_id, key)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func deny_profile(message: String) -> void:
+ rejection = message
+ stop(message)
+
+func _peer_joined(id: int) -> void:
+ if multiplayer.is_server():
+  pending[id] = Time.get_ticks_msec()
+
+func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var existing := main.get_node("Players").get_children()
- main.add_player(id, main.world.spawn_position() + Vector2((existing.size() % 4) * 18, -8))
+ main.add_player(id, main.world.safe_spawn_position(main.world.world_width / 2 + existing.size()))
+ var selected: int = main.saves.attach_peer(id, profile_id, key)
+ peer_admitted.emit(id)
  var roster: Dictionary = {}
  for body in main.get_node("Players").get_children():
   roster[int(str(body.name))] = body.position
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true))
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected)
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
-   spawn_remote.rpc_id(old_id, id, roster[id])
+   _send(old_id, "spawn_remote", [id, roster[id]])
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func request_leave() -> void:
@@ -133,26 +166,21 @@ func despawn_remote(id: int) -> void:
  main.remove_player(id)
  targets.erase(id)
 
-func _peer_left(id: int, taking_inventory: bool = false) -> void:
+func _peer_left(id: int, _taking_inventory: bool = false) -> void:
+ pending.erase(id)
  if active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server():
-  var body = main.get_node("Players").get_node_or_null(str(id))
-  if body != null:
-   if taking_inventory:
-    # Graceful exit carries this inventory into a separate solo world copy.
-    # Do not also drop it into that same departing client's world replica.
-    main.items.inventories.erase(id)
-   else:
-    main.items.retire_player(id, body.position)
-  despawn_remote.rpc(id)
+  main.saves.detach_peer(id)
+  _broadcast("despawn_remote", [id])
  main.remove_player(id)
  commands.erase(id)
  mining.erase(id)
  cooldowns.erase(id)
  last_input.erase(id)
  targets.erase(id)
+ main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int) -> void:
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
@@ -171,6 +199,7 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
  main.select_local_player(multiplayer.get_unique_id())
  main.items.local_inventory().load_data(inventory_data)
  main.combat.apply_snapshot(combat_state)
+ main.interaction.selected_slot = selected
  connected = true
  status = "Подключён · игроков: %d/4" % roster.size()
 
@@ -215,6 +244,10 @@ func _physics_process(delta: float) -> void:
   return
  if not multiplayer.is_server():
   return
+ for peer_id in pending.keys():
+  if Time.get_ticks_msec() - int(pending[peer_id]) > 8000:
+   pending.erase(peer_id)
+   multiplayer.multiplayer_peer.disconnect_peer(peer_id)
  for body in main.get_node("Players").get_children():
   var id := int(str(body.name))
   if not commands.has(id):
@@ -260,7 +293,7 @@ func _physics_process(delta: float) -> void:
   var drop_positions: Dictionary = {}
   for id in main.items.drops:
    drop_positions[id] = main.items.drops[id].position
-  sync_positions.rpc(state, drop_positions, main.combat.motion_snapshot())
+  _broadcast("sync_positions", [state, drop_positions, main.combat.motion_snapshot()])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func terrain_edit(cell: Vector2i, block_id: int) -> void:
@@ -292,14 +325,16 @@ func _process(delta: float) -> void:
 
 func _inventory_changed(id: int) -> void:
  if active and connected and multiplayer.is_server() and id != 1:
-  sync_inventory.rpc_id(id, main.items.inventory_for(id).to_data())
+  _send(id, "sync_inventory", [main.items.inventory_for(id).to_data()])
 
 func _drop_changed(id: int, data: Dictionary) -> void:
  if active and connected and multiplayer.is_server():
-  sync_drop.rpc(id, data)
+  _broadcast("sync_drop", [id, data])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_inventory(data: Array) -> void:
+ if not connected:
+  return
  main.items.local_inventory().load_data(data)
 
 @rpc("authority", "call_remote", "reliable", 0)
@@ -325,11 +360,11 @@ func request_transfer(source: int, destination: int) -> void:
 
 func _terrain_changed(cell: Vector2i, block_id: int) -> void:
  if active and connected and multiplayer.is_server():
-  terrain_edit.rpc(cell, block_id)
+  _broadcast("terrain_edit", [cell, block_id])
 
 func _decoration_changed(kind: String, cell: Vector2i, value: int) -> void:
  if active and connected and multiplayer.is_server():
-  sync_decoration.rpc(kind, cell, value)
+  _broadcast("sync_decoration", [kind, cell, value])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
@@ -337,7 +372,7 @@ func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
 
 func _attack_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server():
-  sync_attack.rpc(id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false)))
+  _broadcast("sync_attack", [id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false))])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_attack(id: int, direction: Vector2, unarmed: bool) -> void:
@@ -360,7 +395,7 @@ func request_craft(recipe_id: String) -> void:
  var id := multiplayer.get_remote_sender_id()
  if main.get_node("Players").has_node(str(id)):
   var result: String = main.items.craft(id, recipe_id)
-  craft_feedback.rpc_id(id, result)
+  _send(id, "craft_feedback", [result])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func craft_feedback(message: String) -> void:
@@ -369,7 +404,7 @@ func craft_feedback(message: String) -> void:
 
 func _entity_changed(id: int, data: Dictionary) -> void:
  if active and connected and multiplayer.is_server():
-  sync_entity.rpc(id, data)
+  _broadcast("sync_entity", [id, data])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_entity(id: int, data: Dictionary) -> void:
@@ -377,7 +412,7 @@ func sync_entity(id: int, data: Dictionary) -> void:
 
 func _chest_changed(id: int, data: Dictionary) -> void:
  if active and connected and multiplayer.is_server():
-  sync_chest.rpc(id, data)
+  _broadcast("sync_chest", [id, data])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_chest(id: int, data: Dictionary) -> void:
@@ -385,9 +420,23 @@ func sync_chest(id: int, data: Dictionary) -> void:
 
 func _player_changed(id: int, data: Dictionary) -> void:
  if active and connected and multiplayer.is_server():
-  sync_life.rpc(id, data)
+  _broadcast("sync_life", [id, data])
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_life(id: int, data: Dictionary) -> void:
  main.combat.apply_player_state(id, data)
  targets.erase(id)
+
+
+func _send(peer_id: int, method: String, arguments: Array) -> void:
+ if peer_id == 1 or not main.saves.peer_profiles.has(peer_id) or not multiplayer.get_peers().has(peer_id):
+  return
+ var peer := (multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(peer_id)
+ if peer != null and peer.get_state() == ENetPacketPeer.STATE_CONNECTED:
+  callv("rpc_id", [peer_id, method] + arguments)
+
+func _broadcast(method: String, arguments: Array) -> void:
+ # Pending/rejected peers never receive gameplay state, and closed ENet peers
+ # cannot be sent packets even before peer_disconnected has been dispatched.
+ for peer_id in main.saves.peer_profiles:
+  _send(peer_id, method, arguments)

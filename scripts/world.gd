@@ -199,8 +199,8 @@ func apply_decoration(kind: String, cell: Vector2i, value: int) -> void:
    torches[cell] = torch
 
 
-func safe_spawn_position() -> Vector2:
- var center := world_width / 2
+func safe_spawn_position(preferred_column: int = -1) -> Vector2:
+ var center: int = world_width / 2 if preferred_column < 0 else preferred_column
  for distance in range(24):
   for sign_value in [1, -1]:
    var column: int = center + distance * sign_value
@@ -210,3 +210,13 @@ func safe_spawn_position() -> Vector2:
     if block_at(Vector2i(column, floor_y)) != -1 and block_at(Vector2i(column, floor_y - 1)) == -1 and block_at(Vector2i(column, floor_y - 2)) == -1:
      return Vector2(column * 16 + 8, floor_y * 16 - 10)
  return Vector2(world_width * 8, -32)
+
+
+func character_fits(at: Vector2) -> bool:
+ var top_left := cell_at(at + Vector2(-5, -18))
+ var bottom_right := cell_at(at + Vector2(4.99, 9.99))
+ for x in range(top_left.x, bottom_right.x + 1):
+  for y in range(top_left.y, bottom_right.y + 1):
+   if block_at(Vector2i(x, y)) != -1:
+    return false
+ return at.x >= 5 and at.x <= world_width * 16 - 5 and at.y >= -64 and at.y <= world_depth * 16
