@@ -10,6 +10,7 @@ const DEFINITIONS := {
  "stone_axe": {"name": "Каменный топор", "kind": "axe", "stack": 1, "chop_time": 1.6, "icon": "res://assets/icons/axe.svg"},
  "wood": {"name": "Древесина", "kind": "material", "icon": "res://assets/icons/wood.svg"},
  "wood_block": {"name": "Доски", "kind": "solid", "block": 4, "icon": "res://assets/icons/planks.svg"},
+ "spark_balm": {"name": "Искровой бальзам", "kind": "consumable", "stack": 20, "heal": 30, "use_time": 1.0, "cooldown": 6.0, "interrupt_delay": 0.6, "icon": "res://assets/icons/balm.svg"},
  "stone_blade": {"name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": 0.45, "stamina_cost": 18.0, "damage": 18, "poise_damage": 18, "reach": 32.0, "icon": "res://assets/icons/blade.svg"},
  "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
  "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},

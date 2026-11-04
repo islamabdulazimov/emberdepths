@@ -198,6 +198,7 @@ func _capture_peer(peer_id: int) -> void:
  var digest: String = profiles.get(id, {}).get("key_hash", profile_key.sha256_text() if peer_id == 1 else "")
  var selected: int = main.interaction.selected_slot if peer_id == 1 and is_instance_valid(main.interaction) else int(main.network.commands.get(peer_id, {}).get("slot", profiles.get(id, {}).get("selected", 0)))
  profiles[id] = {"key_hash": digest, "inventory": main.items.inventory_for(peer_id).to_data(), "life": main.combat.player_data(body), "selected": selected}
+ profiles[id].life["medicine_progress"] = 0.0 # Pending self-use is never committed by loading/rejoining.
 
 func authorize(id: String, key: String) -> String:
  if not Schema.hex_id(id, 32) or not Schema.hex_id(key, 64):
@@ -254,6 +255,9 @@ func _restore_life(peer_id: int, life: Dictionary) -> void:
  # Force position application even when a saved alive character has revision 0.
  body.life_revision = -1
  main.combat.apply_player_state(peer_id, life)
+ body.medicine_progress = 0
+ body.medicine_slot = -1
+ body.medicine_latch = -1
  var relocated: bool = not body.dead and not main.world.character_fits(body.position)
  if relocated:
   body.position = main.world.safe_spawn_position()

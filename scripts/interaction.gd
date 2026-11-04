@@ -45,7 +45,7 @@ func _process(delta: float) -> void:
  var primary: String = service.primary_status(player, selected_cell, selected_slot)
  var placement: String = service.placement_status(player, selected_cell, selected_slot)
  var status := primary if world.block_at(selected_cell) != -1 or kind == "weapon" else placement
- if kind == "axe": status = primary
+ if kind in ["axe","consumable"]: status = primary
  if kind == "wall" and world.wall_at(selected_cell) != -1:
   status = primary
  if world.torches.has(selected_cell) or get_parent().combat.chest_at(selected_cell) != -1 or (kind == "" and get_parent().combat.enemy_at(selected_cell) != -1):
@@ -54,8 +54,20 @@ func _process(delta: float) -> void:
  if kind == "weapon":
   outline_color = Color("e97b77") if primary == "Недостаточно выносливости" else Color("f0cc8c")
  build_cooldown = maxf(0.0, build_cooldown - delta)
+ var held := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+ if not held or player.medicine_latch != selected_slot: player.medicine_latch = -1
+ if held and kind == "consumable": player.medicine_latch = selected_slot
+ var medicine_input: bool = kind == "consumable" or player.medicine_latch == selected_slot
+ if medicine_input and kind != "consumable":
+  status = "Бальзам закончился · отпусти ЛКМ"
+  outline_color = Color("e97b77")
+ if not network.active:
+  var medicine_slot := selected_slot if can_use_mouse() and medicine_input and held else -1
+  service.medicine_step(player,medicine_slot,delta)
  if can_use_mouse() and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-  if kind == "weapon":
+  if medicine_input:
+   mining_time = 0.0
+  elif kind == "weapon":
    mining_time = 0.0
    if not network.active:
     service.use_primary(player, selected_cell, selected_slot)
@@ -95,6 +107,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
  if not is_instance_valid(world):
   return
+ if is_instance_valid(player) and (get_parent().items.selected_definition(player,selected_slot).get("kind","") == "consumable" or player.medicine_latch == selected_slot): return
  var corner: Vector2 = to_local(world.cell_center(selected_cell)) - Vector2(8, 8)
  draw_rect(Rect2(corner, Vector2(16, 16)), outline_color, false, 1.0)
  if mining_time > 0.0 and is_instance_valid(player):

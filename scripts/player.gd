@@ -21,6 +21,12 @@ var swing_tool := false
 var profile_id := ""
 var resources = preload("res://scripts/player_resources.gd").new()
 var resource_sync := 0.0
+var medicine_progress := 0.0
+var medicine_cooldown := 0.0
+var medicine_slot := -1 # Authoritative transient input state; never restored.
+var medicine_latch := -1 # Keep a held self-use from digging after its last item.
+var heal_flash_remaining := 0.0
+var heal_flash_amount := 0
 var health: int:
  get: return resources.health
  set(value): resources.health = clampi(value, 0, resources.max_health)
@@ -68,7 +74,13 @@ func play_tool_swing(direction: Vector2) -> void:
  play_swing(direction)
  swing_tool = true
 
+func show_heal(amount: int) -> void:
+ heal_flash_amount = amount
+ heal_flash_remaining = 0.65
+ queue_redraw()
+
 func _process(delta: float) -> void:
+ heal_flash_remaining = maxf(0, heal_flash_remaining - delta)
  # Remote bodies do not run local physics; use replicated velocity for their gait.
  var grounded := is_on_floor() if is_physics_processing() else absf(velocity.y) < 5.0
  if grounded and not visual_grounded and visual_fall_speed > 70:
@@ -117,7 +129,12 @@ func _draw() -> void:
  draw_rect(Rect2(facing * 2,-13,2,2),Color("202b3c"))
  if unclothed: draw_rect(Rect2(-5,1,10,4),Color("303c52"))
  var hand: Vector2 = pose.front_hand
- if swing_remaining > 0:
+ if medicine_progress > 0:
+  var lift := smoothstep(0.0,0.25,medicine_progress)
+  hand = Vector2(facing * (8 - lift * 3), -3 - lift * 10)
+  _draw_limb(Vector2(facing * 4,-5),Vector2(facing * 8,-5),hand,skin,3)
+  draw_texture_rect(preload("res://data/items.gd").icon("spark_balm"),Rect2(hand - Vector2(4,4),Vector2(8,8)),false)
+ elif swing_remaining > 0:
   var progress := 1.0 - swing_remaining / 0.24
   var stroke := 1.0 - pow(1.0 - progress,3)
   var angle := swing_direction.angle() + lerpf(-0.5,1.05,stroke) * facing
@@ -143,6 +160,16 @@ func _draw() -> void:
  else:
   _draw_limb(Vector2(4,-5),Vector2(6,-2),hand,skin,3)
  draw_set_transform_matrix(Transform2D.IDENTITY)
+ if medicine_progress > 0:
+  draw_rect(Rect2(-12,-29,24,3),Color("27353e"))
+  draw_rect(Rect2(-12,-29,24 * medicine_progress,3),Color("e7c58e"))
+ if heal_flash_remaining > 0:
+  var color := Color("a3d7a1")
+  color.a = minf(1,heal_flash_remaining * 3)
+  var text_at := Vector2(-9,-32 - (0.65-heal_flash_remaining)*10)
+  var text := "+%d" % heal_flash_amount
+  draw_string_outline(ThemeDB.fallback_font,text_at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,1,Color(0.1,0.16,0.18,color.a))
+  draw_string(ThemeDB.fallback_font,text_at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,color)
  if hurt_immunity > 0 and int(elapsed * 12) % 2 == 0:
   draw_arc(Vector2(0,-4),18,0,TAU,20,Color(0.9,0.8,0.65,0.45),1)
 

@@ -49,6 +49,8 @@ static func life(value: Variant, width: int, depth: int) -> bool:
   return false
  if not scalar(value.get("max_stamina", 100.0), 1, 1000000) or not scalar(value.get("stamina", value.get("max_stamina", 100.0)), 0, float(value.get("max_stamina", 100.0))) or not scalar(value.get("stamina_delay", 0.0), 0, 10):
   return false
+ if not scalar(value.get("medicine_cooldown",0),0,60) or not scalar(value.get("medicine_progress",0),0,1):
+  return false
  if not scalar(value.immunity, 0, 10) or not scalar(value.respawn, -1, 10) or not integer(value.revision, 0, 1000000000):
   return false
  if not point(value.position, width, depth) or not velocity(value.velocity) or not point(value.last_chest, width, depth):

@@ -162,6 +162,11 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
   return "Вы погибли"
  if kind == "weapon":
   return "Недостаточно выносливости" if body.resources.stamina < float(selected_definition(body, slot).stamina_cost) else "ЛКМ — удар клинком"
+ if kind == "consumable":
+  if body.health >= body.resources.max_health: return "Здоровье полное"
+  if body.medicine_cooldown > 0: return "Бальзам: ожидание %.1f с" % body.medicine_cooldown
+  if body.swing_remaining > 0: return "Дождись завершения удара"
+  return "Можно применить бальзам · удерживай ЛКМ"
  if kind == "axe":
   if main.world.tree_at(cell) == -1: return "Наведи топор на ствол дерева"
   if not main.world.in_reach(body,cell): return "Дерево слишком далеко"
@@ -186,6 +191,7 @@ func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
 func primary_duration(body: CharacterBody2D, cell: Vector2i, slot: int) -> float:
  var definition := selected_definition(body, slot)
  if definition.get("kind", "") == "axe": return float(definition.chop_time)
+ if definition.get("kind", "") == "consumable": return float(definition.use_time)
  if main.combat.chest_at(cell) != -1:
   return 0.6
  if definition.is_empty() and main.combat.enemy_at(cell) != -1:
@@ -221,6 +227,7 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
  var kind: String = definition.get("kind", "")
  if kind == "weapon":
   return swing(body, slot, main.world.cell_center(cell) - body.position)
+ if kind == "consumable": return finish_medicine(body,slot)
  if kind == "axe": return chop_tree(body, cell, slot)
  if main.combat.chest_at(cell) != -1:
   return main.combat.break_chest(body, cell)
@@ -241,6 +248,49 @@ func use_primary(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   _check_torch_support()
   return true
  return try_edit(body, cell, -1, main.get_node("Players").get_children())
+
+func cancel_medicine(body: CharacterBody2D, interrupted: bool = false, notify: bool = true) -> void:
+ if not main.combat.authoritative(): return
+ var was_active: bool = body.medicine_slot != -1 or body.medicine_progress > 0
+ if interrupted and was_active:
+  body.medicine_cooldown = maxf(body.medicine_cooldown, float(selected_definition(body,body.medicine_slot).get("interrupt_delay",0.6)))
+ body.medicine_progress = 0
+ body.medicine_slot = -1
+ if was_active and notify: main.combat.player_changed.emit(int(str(body.name)),main.combat.player_data(body))
+
+# Both solo input and host commands use this path. Clients never supply delta.
+func medicine_step(body: CharacterBody2D, slot: int, delta: float) -> bool:
+ if not main.combat.authoritative(): return false
+ if slot < 0 or slot >= Inventory.HOTBAR_COUNT or selected_definition(body,slot).get("kind","") != "consumable" or not primary_status(body,Vector2i.ZERO,slot).begins_with("Можно применить"):
+  cancel_medicine(body)
+  return false
+ var fresh: bool = body.medicine_slot != slot
+ if fresh:
+  cancel_medicine(body,false,false)
+  body.medicine_slot = slot
+ body.medicine_latch = slot
+ body.medicine_progress = minf(1,body.medicine_progress + maxf(delta,0) / float(selected_definition(body,slot).use_time))
+ if body.medicine_progress >= 1.0 - 0.000001: return finish_medicine(body,slot)
+ if fresh or body.resource_sync <= 0:
+  body.resource_sync = 0.1
+  main.combat.player_changed.emit(int(str(body.name)),main.combat.player_data(body))
+ return false
+
+func finish_medicine(body: CharacterBody2D, slot: int) -> bool:
+ if not main.combat.authoritative() or slot < 0 or slot >= Inventory.HOTBAR_COUNT or body.medicine_slot != slot or body.medicine_progress < 1.0 - 0.000001: return false
+ var definition := selected_definition(body,slot)
+ if definition.get("kind","") != "consumable" or not primary_status(body,Vector2i.ZERO,slot).begins_with("Можно применить"):
+  cancel_medicine(body)
+  return false
+ var id := int(str(body.name))
+ if not inventory_for(id).take_one(slot):
+  cancel_medicine(body)
+  return false
+ cancel_medicine(body,false,false)
+ body.medicine_cooldown = float(definition.cooldown)
+ main.combat.heal_player(id,int(definition.heal))
+ inventory_changed.emit(id)
+ return true
 
 func animate_chop(body: CharacterBody2D, cell: Vector2i, slot: int) -> void:
  if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно рубить дерево": return

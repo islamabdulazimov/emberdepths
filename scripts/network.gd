@@ -272,7 +272,14 @@ func _physics_process(delta: float) -> void:
   var cell: Vector2i = command.cell
   var definition: Dictionary = main.items.selected_definition(body, command.slot)
   var primary: String = main.items.primary_status(body, cell, command.slot)
-  if command.mode == 1 and definition.get("kind", "") == "weapon":
+  if command.mode != 1 or body.medicine_latch != command.slot: body.medicine_latch = -1
+  if command.mode == 1 and definition.get("kind", "") == "consumable": body.medicine_latch = command.slot
+  var medicine_input: bool = definition.get("kind", "") == "consumable" or body.medicine_latch == command.slot
+  var using_medicine: bool = command.mode == 1 and medicine_input
+  main.items.medicine_step(body,command.slot if using_medicine else -1,delta)
+  if medicine_input:
+   mining.erase(id)
+  elif command.mode == 1 and definition.get("kind", "") == "weapon":
    mining.erase(id)
    main.items.use_primary(body, cell, command.slot)
   elif command.mode == 1 and primary.begins_with("Можно"):

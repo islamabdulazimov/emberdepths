@@ -5,7 +5,8 @@ root=Path(__file__).resolve().parents[1]
 combat_mode="--combat" in sys.argv
 crafting_mode="--crafting" in sys.argv
 logging_mode="--logging" in sys.argv
-script="tests/network_logging_smoke.gd" if logging_mode else ("tests/network_combat_smoke.gd" if combat_mode else ("tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd"))
+healing_mode="--healing" in sys.argv
+script="tests/network_healing_smoke.gd" if healing_mode else ("tests/network_logging_smoke.gd" if logging_mode else ("tests/network_combat_smoke.gd" if combat_mode else ("tests/network_crafting_smoke.gd" if crafting_mode else "tests/network_smoke.gd")))
 failed=False
 log_dir=Path(tempfile.mkdtemp(prefix="emberdepths-network-"))
 env=os.environ.copy()
@@ -18,7 +19,15 @@ def launch(role):
  processes.append((role,proc,log))
 try:
  launch('host');time.sleep(.5)
- if logging_mode:
+ if healing_mode:
+  launch('healer')
+  deadline=time.monotonic()+8
+  while 'HEALED' not in (log_dir/'host.log').read_text():
+   if time.monotonic()>deadline:
+    raise RuntimeError('Host did not reach healing fixture; logs: '+str(log_dir))
+   time.sleep(.05)
+  launch('late')
+ elif logging_mode:
   launch('logger')
   deadline=time.monotonic()+8
   while 'TREE_CUT' not in (log_dir/'host.log').read_text():

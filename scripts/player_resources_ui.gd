@@ -33,6 +33,7 @@ func _ready() -> void:
  progress.position = Vector2(0, 74)
  progress.size = Vector2(220, 36)
  progress.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ progress.max_lines_visible = 2
  progress.add_theme_font_size_override("font_size", 12)
  progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
  add_child(progress)
@@ -40,6 +41,10 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
  if not is_instance_valid(main.player): return
  progress.text = main.encounter.notice
+ if main.player.medicine_progress > 0:
+  progress.text = "Бальзам · применение %d%%\n%s" % [roundi(main.player.medicine_progress*100),main.encounter.notice]
+ elif main.player.medicine_cooldown > 0:
+  progress.text = "Бальзам · готов через %.1f с\n%s" % [main.player.medicine_cooldown,main.encounter.notice]
  var values = main.player.resources
  var current := [values.health, values.mana, values.stamina]
  var maximum := [values.max_health, values.max_mana, values.max_stamina]

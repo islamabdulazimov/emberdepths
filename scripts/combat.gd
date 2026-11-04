@@ -125,6 +125,7 @@ func line_clear(from: Vector2, to: Vector2) -> bool:
 
 func player_data(body: CharacterBody2D) -> Dictionary:
  var state: Dictionary = body.resources.snapshot()
+ state.merge({"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress})
  state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
  return state
 
@@ -133,11 +134,15 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  if body == null:
   return
  var changed_life: bool = body.life_revision != int(data.revision)
+ var healed: int = maxi(0,int(data.health)-body.health) if not changed_life else 0
  body.profile_id = data.get("profile", body.profile_id)
  body.since_hurt = data.get("since_hurt", 0.0)
  body.regen_fraction = data.get("regen_fraction", 0.0)
  body.knockback_remaining = data.get("knockback", 0.0)
  body.resources.apply(data)
+ body.medicine_cooldown = float(data.get("medicine_cooldown",0))
+ body.medicine_progress = float(data.get("medicine_progress",0))
+ if healed > 0: body.show_heal(healed)
  body.dead = data.dead
  body.unclothed = data.unclothed
  body.hurt_immunity = data.immunity
@@ -166,6 +171,7 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  var direction := signf(body.position.x - source.x)
  body.velocity = Vector2((1.0 if direction == 0 else direction) * 140, -110)
  body.knockback_remaining = 0.16
+ main.items.cancel_medicine(body,true,false)
  if body.health == 0:
   _kill(body)
  player_changed.emit(id, player_data(body))
@@ -195,6 +201,9 @@ func _kill(body: CharacterBody2D) -> void:
   main.inventory_ui.toggle()
 
 func respawn(body: CharacterBody2D) -> void:
+ body.medicine_progress = 0
+ body.medicine_slot = -1
+ body.medicine_latch = -1
  body.dead = false
  body.resources.reset_full()
  body.hurt_immunity = Rules.RESPAWN_IMMUNITY
@@ -300,7 +309,14 @@ func _physics_process(delta: float) -> void:
  var alive: Array = []
  for body in main.get_node("Players").get_children():
   body.hurt_immunity = maxf(0.0, body.hurt_immunity - delta)
+  var previous_cooldown: float = body.medicine_cooldown
+  body.medicine_cooldown = maxf(0,body.medicine_cooldown-delta)
+  var cooldown_changed: bool = previous_cooldown != body.medicine_cooldown
+  body.resource_sync = maxf(0,body.resource_sync-delta)
   if body.dead:
+   if cooldown_changed and body.resource_sync <= 0:
+    body.resource_sync = 0.1
+    player_changed.emit(int(str(body.name)),player_data(body))
    body.respawn_remaining -= delta
    if body.respawn_remaining <= 0:
     respawn(body)
@@ -308,8 +324,7 @@ func _physics_process(delta: float) -> void:
   alive.append(body)
   body.since_hurt += delta
   var recovered: bool = body.resources.tick(delta)
-  body.resource_sync = maxf(0, body.resource_sync - delta)
-  if recovered and body.resource_sync <= 0:
+  if (recovered or cooldown_changed) and body.resource_sync <= 0:
    body.resource_sync = 0.1
    player_changed.emit(int(str(body.name)), player_data(body))
  for id in entities.keys():
@@ -448,7 +463,9 @@ func heal_player(id: int, amount: int) -> int:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null or body.dead: return 0
  var restored: int = body.resources.heal(amount)
- if restored > 0: player_changed.emit(id, player_data(body))
+ if restored > 0:
+  body.show_heal(restored)
+  player_changed.emit(id, player_data(body))
  return restored
 
 func spend_mana(id: int, amount: int) -> bool:

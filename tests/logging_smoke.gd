@@ -94,6 +94,6 @@ func run() -> void:
  check_result(main.items.local_inventory().count_item("wood") == expected-2 and main.items.local_inventory().count_item("stone_axe") == 1 and main.items.local_inventory().count_item("wood_block") == 2, "Reload restores exact wood axe and remaining planks")
  check_result(world.forest.falling.is_empty(), "Load never replays or restores expired fall animation")
  main.inventory_ui.toggle()
- check_result(main.inventory_ui.recipe_buttons.size() == 7 and main.inventory_ui.recipe_buttons.wood_block.get_parent().get_parent() is ScrollContainer, "All seven recipes are accessible through a scrollable crafting list")
+ check_result(main.inventory_ui.recipe_buttons.size() == 8 and main.inventory_ui.recipe_buttons.wood_block.get_parent().get_parent() is ScrollContainer, "All eight recipes are accessible through a scrollable crafting list")
  print("Logging failures: ",failures)
  quit(1 if failures else 0)
