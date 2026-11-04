@@ -12,6 +12,13 @@ func _ready() -> void:
 
 func generate() -> void:
  heights.clear()
+ changes.clear()
+ if is_instance_valid(solid):
+  remove_child(solid)
+  solid.queue_free()
+ if is_instance_valid(walls):
+  remove_child(walls)
+  walls.queue_free()
  var tiles := TileSet.new()
  tiles.tile_size = Vector2i(16, 16)
  tiles.add_physics_layer()
@@ -106,9 +113,13 @@ func request_edit(actor: CharacterBody2D, cell: Vector2i, block_id: int, bodies:
  var expected := "Можно построить" if block_id != -1 else "Можно добыть"
  if interaction_status(actor, cell, block_id != -1, bodies) != expected:
   return false
+ apply_edit(cell, block_id)
+ return true
+
+# Trusted replication/snapshot path; clients never invoke it on the host via RPC.
+func apply_edit(cell: Vector2i, block_id: int) -> void:
  if block_id == -1:
   solid.erase_cell(cell)
  else:
   solid.set_cell(cell, 0, Blocks.DEFINITIONS[block_id].atlas)
  changes[cell] = block_id
- return true
