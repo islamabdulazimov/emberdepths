@@ -126,3 +126,6 @@ saves.peer_profiles связывает текущий peer с постоянны
 Rules.scaled_health — общий расчёт с HEALTH_PER_EXTRA_PLAYER=0.25. Счётчик использует зарегистрированные тела Players, включая dead; pending/offline записи не учитываются. spawn_entity только на authority, устанавливает base_health/max_health/scaling_players один раз. Поля реплицируются и сохраняются, old saves считаются созданными при одном игроке. Дух масштабирует отображаемые HP, но остаётся на два попадания: первый оставляет половину, второй убивает. Остальные speed/damage/poise неизменны.
 
 resources_scaling_smoke.gd: 26 проверок прошли; combat_smoke: 40 прошли с изменённым ожиданием отсутствия автолечения. Далее общий UI и Andrew; на этом промежуточном этапе их ещё нет.
+
+
+Второй промежуточный этап: boss_state.gd и boss_ui.gd — общий модель/UI без зависимости от Andrew. begin фиксирует общий коэффициент HP один раз; apply восстанавливает, не пересчитывая. Имя, HP, отдельная optional poise bar, hide при active=false. boss_ui_smoke.gd: 7 проверок прошли. Сам Andrew — следующий этап.
