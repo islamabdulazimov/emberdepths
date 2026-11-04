@@ -10,6 +10,7 @@ var profile_id := ""
 var profile_key := "" # Never included in world snapshots or logs.
 var identity_error := ""
 var status := ""
+var restore_notice := ""
 var write_blocked := false
 var profiles: Dictionary = {}
 var peer_profiles: Dictionary = {}
@@ -145,7 +146,7 @@ func _build_ui() -> void:
  row.position = Vector2(708, 128)
  main.get_node("HUD").add_child(row)
  save_button = _button(row, "Сохранить", "Сохранить мир и всех персонажей на хосте", func(): save_now())
- load_button = _button(row, "Загрузить", "Загрузить последний мир; только вне сетевой сессии", func(): load_now())
+ load_button = _button(row, "Загрузить", "Вернуть мир, вещи и позицию к последнему сохранению. Текущие несохранённые изменения заменятся.", func(): load_now())
  new_button = _button(row, "Новый", "Начать новый мир с архивированием предыдущего", func(): new_dialog.popup_centered())
  save_label = Label.new()
  save_label.position = Vector2(14, 445)
@@ -252,9 +253,20 @@ func _restore_life(peer_id: int, life: Dictionary) -> void:
  # Force position application even when a saved alive character has revision 0.
  body.life_revision = -1
  main.combat.apply_player_state(peer_id, life)
- if not body.dead and not main.world.character_fits(body.position):
+ var relocated: bool = not body.dead and not main.world.character_fits(body.position)
+ if relocated:
   body.position = main.world.safe_spawn_position()
   body.velocity = Vector2.ZERO
+ if peer_id == 1:
+  var cell: Vector2i = main.world.cell_at(body.position)
+  restore_notice = "Вы (%d, %d)" % [cell.x, cell.y]
+  if relocated:
+   restore_notice += " · точка занята блоком, выбрана безопасная"
+  elif body.dead:
+   restore_notice += " · сохранена смерть, ожидается возрождение"
+  var camera: Camera2D = body.get_node("Camera2D")
+  camera.reset_smoothing()
+  camera.force_update_scroll()
 
 func restore(state: Dictionary) -> String:
  var error: String = Schema.validate(state)
@@ -378,7 +390,8 @@ func save_now() -> bool:
   status = "Не удалось завершить запись; старый файл сохранён"
   return false
  elapsed = 0
- status = "Сохранено · " + Time.get_time_string_from_system()
+ var saved_cell: Vector2i = main.world.cell_at(main.player.position)
+ status = "Сохранено в (%d, %d) · %s" % [saved_cell.x, saved_cell.y, Time.get_time_string_from_system()]
  return true
 
 func load_now() -> bool:
@@ -401,7 +414,7 @@ func load_now() -> bool:
   return false
  write_blocked = false
  elapsed = 0
- status = "Восстановлено из резервной копии" if backup else "Мир загружен"
+ status = ("Восстановлено из резервной копии" if backup else "Мир загружен") + " · " + restore_notice
  return true
 
 func new_world() -> void:

@@ -44,7 +44,7 @@ func run() -> void:
    main.saves._process(0.2)
    check_result(FileAccess.file_exists(main.saves.save_path) and main.saves.status.begins_with("Сохранено"), "Autosave interval writes complete world to physical file")
  else:
-  check_result(main.saves.status == "Мир загружен", "Second process automatically loads saved world at startup")
+  check_result(main.saves.status.begins_with("Мир загружен"), "Second process automatically loads saved world at startup")
   check_result(main.world.block_at(Vector2i(96, 22)) == -1 and main.world.block_at(Vector2i(97, 21)) == 2, "Real restart preserves mined and placed blocks")
   check_result(main.world.wall_at(Vector2i(98, 21)) == 1 and main.world.torches.has(Vector2i(98, 21)), "Real restart preserves walls and torches")
   check_result(main.items.local_inventory().count_item("stone") == 12 and main.items.local_inventory().count_item("stone_pick") == 1 and main.interaction.selected_slot == 1, "Real restart restores inventory and hotbar selection")

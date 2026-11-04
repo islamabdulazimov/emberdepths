@@ -28,6 +28,6 @@ func run() -> void:
   check_result(FileAccess.get_file_as_string(main.saves.save_path).sha256_text() == before, "Second process leaves original save bytes unchanged")
  else:
   check_result(main.saves.identity_error == "" and main.saves.owns_lock, "Stale profile lock is recovered after owner process crash")
-  check_result(main.saves.status == "Мир загружен" and main.items.local_inventory().count_item("stone") == 17, "Crash recovery loads intact original inventory")
+  check_result(main.saves.status.begins_with("Мир загружен") and main.items.local_inventory().count_item("stone") == 17, "Crash recovery loads intact original inventory")
  print("Profile lock ", role, " failures: ", failures)
  quit(1 if failures else 0)
