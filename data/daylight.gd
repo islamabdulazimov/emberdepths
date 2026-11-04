@@ -9,8 +9,8 @@ static func sample(world_time: float) -> Dictionary:
  var dawn := smoothstep(Rules.CYCLE_SECONDS - 15, Rules.CYCLE_SECONDS, phase) if phase > Rules.DAY_SECONDS else 1.0 - smoothstep(0.0, 20.0, phase)
  var warmth := maxf(sunset, dawn)
  return {"phase": phase, "night": night,
-  "top": Color("7ca8bd").lerp(Color("101b32"), night).lerp(Color("9a788b"), warmth * 0.5),
-  "horizon": Color("c4d9ca").lerp(Color("34445f"), night).lerp(Color("efb382"), warmth * 0.85),
+  "top": Color("789da6").lerp(Color("131e32"), night).lerp(Color("9a788b"), warmth * 0.5),
+  "horizon": Color("c8cdb8").lerp(Color("34445f"), night).lerp(Color("e7a87b"), warmth * 0.85),
   "ambient": Color("eef1e4").lerp(Color("39455e"), night).lerp(Color("f1d5b6"), warmth * 0.18),
   "sun_progress": clampf(phase / Rules.DAY_SECONDS, 0, 1),
   "sun_alpha": (1.0 - smoothstep(Rules.DAY_SECONDS - 2, Rules.DAY_SECONDS, phase)) * smoothstep(0, 2, phase),

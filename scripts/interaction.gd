@@ -87,6 +87,7 @@ func _process(delta: float) -> void:
     service.use_primary(player, selected_cell, selected_slot)
   elif primary.begins_with("Можно"):
    if kind == "axe" and not network.active: service.animate_chop(player,selected_cell,selected_slot)
+   elif not network.active: service.animate_work(player,selected_cell,"pick" if kind == "tool" else "punch")
    if mining_cell != selected_cell or mining_slot != selected_slot:
     mining_time = 0.0
     mining_cell = selected_cell

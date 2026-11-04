@@ -95,6 +95,7 @@ func _player_changed(id: int, data: Dictionary) -> void:
 func end_fight(reason: String) -> void:
  if state != null: state.active = false
  if is_instance_valid(actor):
+  if reason == "defeated": main.effects.burst("impact",actor.position+Vector2(0,-32))
   actor.indicator_active = false
   actor.hit_targets.clear()
   remove_child(actor)
@@ -141,6 +142,7 @@ func apply(data: Dictionary) -> void:
  pending = data.pending
  notice = data.notice
  if data.boss.is_empty():
+  if is_instance_valid(actor) and data.notice == "Andrew повержен": main.effects.burst("impact",actor.position+Vector2(0,-32))
   if state != null: state.active = false
   if is_instance_valid(actor):
    remove_child(actor)

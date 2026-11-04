@@ -16,7 +16,7 @@ func _process(_delta: float) -> void:
  queue_redraw()
 
 func _draw() -> void:
- if not is_instance_valid(main.combat): return
+ if size.x < 32 or size.y < 32 or not is_instance_valid(main.combat): return
  var state := Daylight.sample(main.combat.world_time)
  var cave := Color("172331")
  for y in range(0, ceili(size.y), 4):
@@ -44,6 +44,29 @@ func _draw() -> void:
   _disc(at + Vector2(3,-1), 8, Color(0.56,0.66,0.73,alpha))
   draw_rect(Rect2(at + Vector2(-5,-4),Vector2(3,3)),Color(0.65,0.75,0.77,alpha))
   draw_rect(Rect2(at + Vector2(-3,3),Vector2(2,2)),Color(0.65,0.75,0.77,alpha))
+
+ # Slow cloud shelves and distant basalt spires use the shared world time too.
+ for i in range(6):
+  var x := fposmod(i*193.0+main.combat.world_time*(0.7+i*0.09),size.x+180)-90
+  var y := size.y*(0.16+float(i%3)*0.075)
+  var cloud: Color = state.horizon.lerp(Color("e1dec2"),0.25)
+  cloud.a = visibility*lerpf(0.30,0.08,state.night)
+  draw_rect(Rect2(roundf(x),roundf(y),66+i%3*14,4),cloud)
+  draw_rect(Rect2(roundf(x+12),roundf(y-3),37+i%2*9,3),cloud)
+ for layer in range(3):
+  var ridge := PackedVector2Array([Vector2(0,size.y)])
+  var base := size.y*(0.71+layer*0.085)
+  for i in range(18):
+   var x := float(i)/17*size.x
+   var height := float(posmod(i*37+layer*71,43))+12
+   ridge.append(Vector2(x,base-height))
+   if i%3 == 0:
+    ridge.append(Vector2(x+4,base-height-13))
+    ridge.append(Vector2(x+10,base-height-13))
+  ridge.append(size)
+  var color: Color = state.horizon.lerp(Color("293b46"),0.3+layer*0.15)
+  color.a = visibility*0.7
+  draw_colored_polygon(ridge,color)
 
 func _disc(at: Vector2, radius: int, color: Color) -> void:
  # Pixel steps rather than antialiased vector circles.

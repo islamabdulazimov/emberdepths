@@ -14,9 +14,12 @@ func _ready() -> void:
  title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
  title.mouse_filter = Control.MOUSE_FILTER_IGNORE
  title.add_theme_font_size_override("font_size", 15)
+ title.add_theme_color_override("font_color",Color("e1dec2"))
+ title.add_theme_color_override("font_outline_color",Color("18252e"))
+ title.add_theme_constant_override("outline_size",2)
  add_child(title)
- health_bar = _bar(23, 16, Color("b85461"))
- poise_bar = _bar(42, 7, Color("d6b975"))
+ health_bar = _bar(23, 16, Color("ac655f"))
+ poise_bar = _bar(42, 7, Color("bd9b68"))
  hide()
 
 func _bar(y: float, height: float, color: Color) -> ProgressBar:
@@ -26,7 +29,9 @@ func _bar(y: float, height: float, color: Color) -> ProgressBar:
  bar.show_percentage = false
  bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
  var background := StyleBoxFlat.new()
- background.bg_color = Color("202b36")
+ background.bg_color = Color("18252e")
+ background.border_color = Color("455d68")
+ background.set_border_width_all(1)
  bar.add_theme_stylebox_override("background", background)
  var fill := StyleBoxFlat.new()
  fill.bg_color = color

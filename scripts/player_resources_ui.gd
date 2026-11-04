@@ -14,9 +14,11 @@ func _ready() -> void:
   bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
   var background := StyleBoxFlat.new()
   background.bg_color = Color("18252e")
+  background.border_color = Color("455d68")
+  background.set_border_width_all(1)
   bar.add_theme_stylebox_override("background", background)
   var fill := StyleBoxFlat.new()
-  fill.bg_color = [Color("bb515b"), Color("4d83c7"), Color("579a68")][i]
+  fill.bg_color = [Color("ac655f"), Color("597e9c"), Color("668a75")][i]
   bar.add_theme_stylebox_override("fill", fill)
   add_child(bar)
   bars.append(bar)

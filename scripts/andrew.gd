@@ -2,6 +2,7 @@ extends CharacterBody2D
 const Pose = preload("res://scripts/visuals/andrew_pose.gd")
 var visual_clock := 0.0
 var visual_pose: Dictionary = {}
+var visual_phase := ""
 var visual_hit := 0.0
 var encounter: Node2D
 var state: RefCounted
@@ -281,36 +282,7 @@ func _draw() -> void:
  transform.origin = pivot - transform * pivot
  transform = Transform2D(float(pose.lean) * facing, Vector2(pose.scale) * Vector2(facing * turn_width, 1), 0, pose.offset) * transform
  draw_set_transform_matrix(transform)
- var skin := Color("e4bba0")
- var shade := Color("ba8875")
- var light := Color("f2d1b4")
- if phase == "super_windup":
-  skin = skin.lerp(Color("ed6962"), smoothstep(0.0, 0.8, phase_elapsed / phase_duration))
-  light = light.lerp(Color("ffaca0"), 0.7)
- if visual_hit > 0: skin = skin.lerp(Color.WHITE, 0.65)
- # Far limbs first, then torso and near arm; feet bend instead of changing length.
- _draw_arm(Vector2(-17,-43), pose.back_elbow, pose.back_hand, shade)
- _draw_leg(Vector2(-10,-14), pose.back_foot, shade)
- _draw_leg(Vector2(10,-14), pose.front_foot, skin)
- draw_rect(Rect2(-13,-69,26,33), Color("3c3037"))
- draw_rect(Rect2(-11,-68,22,30), Color("705445"))
- draw_rect(Rect2(-8,-65,16,15), skin)
- draw_rect(Rect2(-10,-54,20,8), skin)
- draw_rect(Rect2(-9,-68,18,4), Color("594239"))
- draw_rect(Rect2(2,-59,3,2), Color("30303c"))
- draw_rect(Rect2(7,-57,3,4), shade)
- draw_rect(Rect2(2,-50,6,2), shade)
- draw_rect(Rect2(-19,-47,38,20), skin)
- draw_rect(Rect2(-15,-44,12,7), shade)
- draw_rect(Rect2(3,-44,12,7), shade)
- draw_rect(Rect2(-13,-45,9,2), light)
- draw_rect(Rect2(4,-45,10,2), light)
- draw_colored_polygon(PackedVector2Array([Vector2(-18,-32),Vector2(-23,-25),Vector2(-23,-21),Vector2(-17,-14),Vector2(17,-14),Vector2(23,-21),Vector2(23,-25),Vector2(18,-32)]), skin)
- draw_line(Vector2(-19,-21),Vector2(-14,-16),shade,2)
- draw_rect(Rect2(-1,-26,2,3),shade)
- draw_rect(Rect2(-17,-17,34,8),Color("394b58"))
- draw_rect(Rect2(-16,-17,32,2),Color("647785"))
- _draw_arm(Vector2(17,-43), pose.front_elbow, pose.front_hand, skin)
+ preload("res://scripts/visuals/andrew_art.gd").draw_body(self,pose,phase,visual_hit,visual_clock)
  draw_set_transform_matrix(Transform2D.IDENTITY)
  # Short motion trails are cosmetic; damage still follows the existing phase.
  if phase == "uppercut_active":
@@ -319,8 +291,8 @@ func _draw() -> void:
   draw_arc(Vector2(0,-36), 49, visual_clock, visual_clock + PI * 0.8, 18, Color(1,0.82,0.61,0.4),2)
 
 func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) -> void:
- draw_line(shoulder, elbow, Color("674e4e"), 12)
- draw_line(elbow, hand, Color("674e4e"), 10)
+ draw_line(shoulder, elbow, Color("18252e"), 12)
+ draw_line(elbow, hand, Color("18252e"), 10)
  draw_line(shoulder, elbow, skin, 10)
  draw_line(elbow, hand, skin, 8)
  draw_rect(Rect2(hand.round() - Vector2(4,4),Vector2(8,8)),skin)
@@ -328,12 +300,21 @@ func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) ->
 
 func _draw_leg(hip: Vector2, foot: Vector2, skin: Color) -> void:
  var knee := hip.lerp(foot,0.5) + Vector2(3,-1)
- draw_line(hip,knee,Color("674e4e"),9)
+ draw_line(hip,knee,Color("18252e"),9)
  draw_line(knee,foot - Vector2(0,2),skin,7)
- draw_rect(Rect2(foot.round() - Vector2(4,3),Vector2(10,3)),Color("8c675e"))
+ draw_rect(Rect2(foot.round() - Vector2(4,3),Vector2(10,3)),Color("293b46"))
 
+
+func emit_visual(kind: String, at: Vector2) -> void:
+ var main = encounter.get("main")
+ if is_instance_valid(main) and is_instance_valid(main.get("effects")): main.effects.burst(kind,at)
 
 func _process(delta: float) -> void:
+ if visual_phase != phase:
+  if phase == "super_impact": emit_visual("impact",position)
+  elif phase == "intro": emit_visual("respawn",position+Vector2(0,-35))
+  elif phase == "super_flight": emit_visual("land",position)
+  visual_phase = phase
  visual_clock += delta * (2.0 + absf(velocity.x) * 0.13)
  visual_hit = maxf(0, visual_hit - delta)
  var target_pose := Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)

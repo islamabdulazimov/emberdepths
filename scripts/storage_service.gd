@@ -49,6 +49,7 @@ func place(body: CharacterBody2D, anchor: Vector2i, slot: int) -> bool:
  var id := int(str(body.name))
  main.items.inventory_for(id).take_one(slot)
  main.items.inventory_changed.emit(id)
+ main.items.animate_work(body,anchor,"build")
  refresh(anchor)
  return true
 

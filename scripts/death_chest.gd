@@ -18,4 +18,12 @@ func _draw() -> void:
  draw_rect(Rect2(-5, -6, 2, 13), Color("c6a86f"))
  draw_rect(Rect2(3, -6, 2, 13), Color("c6a86f"))
  draw_rect(Rect2(-1, -2, 3, 4), Color("f1d797"))
- draw_circle(Vector2(0, -13 - sin(clock * 3)), 2, Color("c5e5d2"))
+ var at := Vector2(0,roundf(-15-sin(clock*2)*1.5))
+ var color := Color("88aaa9")
+ draw_line(at+Vector2(0,-3),at+Vector2(3,0),color,1)
+ draw_line(at+Vector2(3,0),at+Vector2(0,3),color,1)
+ draw_line(at+Vector2(0,3),at+Vector2(-3,0),color,1)
+ draw_line(at+Vector2(-3,0),at+Vector2(0,-3),color,1)
+ for i in range(2):
+  var t := fposmod(clock*0.3+i*0.5,1)
+  draw_rect(Rect2(-4+i*7,-8-t*12,1,2),Color(0.53,0.67,0.66,(1-t)*0.4))

@@ -15,12 +15,15 @@ const Torch = preload("res://scripts/torch.gd")
 var heights: PackedInt32Array = []
 const Trees = preload("res://data/trees.gd")
 var trees: Array = []
+var detail: Node2D
 var forest: Node2D
 
 func _ready() -> void:
  generate()
 
 func generate() -> void:
+ var effects = get_parent().get("effects")
+ if is_instance_valid(effects): effects.clear()
  var storage = get_parent().get("storage")
  if is_instance_valid(storage): storage.clear()
  for anchor in doors.keys(): apply_door(anchor,-1)
@@ -94,6 +97,12 @@ func generate() -> void:
   forest.name = "Forest"
   forest.set_script(preload("res://scripts/forest.gd"))
   add_child(forest)
+ if is_instance_valid(detail): move_child(detail,-1)
+ else:
+  detail = Node2D.new()
+  detail.name = "SurfaceDetails"
+  detail.set_script(preload("res://scripts/visuals/world_detail.gd"))
+  add_child(detail)
 
 func spawn_position() -> Vector2:
  return Vector2((world_width / 2) * 16 + 8, 22 * 16 - 24)

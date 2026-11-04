@@ -33,7 +33,7 @@ static func icon(item_id: String) -> Texture2D:
    icon_cache[item_id] = load(definition.icon)
   else:
    var texture := AtlasTexture.new()
-   texture.atlas = preload("res://assets/terrain.png")
+   texture.atlas = preload("res://assets/terrain.svg")
    texture.region = Rect2(Vector2(definition.atlas) * 16.0, Vector2(16, 16))
    icon_cache[item_id] = texture
  return icon_cache[item_id]

@@ -37,6 +37,7 @@ func run() -> void:
  var saw_four := false
  var saw_mined := false
  var saw_built := false
+ var saw_work := false
  var saw_move := false
  var mined_once := false
  var late_snapshot := false
@@ -55,6 +56,8 @@ func run() -> void:
    continue
   if not main.network.connected:
    continue
+  for body in main.get_node("Players").get_children():
+   if body.work_remaining > 0: saw_work = true
   if role == "host" and not tree_fixture and Time.get_ticks_msec() - start > 1300:
    main.world.apply_edit(tree_cell,-1)
    main.items.terrain_changed.emit(tree_cell,-1)
@@ -110,6 +113,8 @@ func run() -> void:
    mined_once = true
   if main.world.changes.get(cell, 99) == 2:
    saw_built = true
+ if role in ["host","client1","client2"]:
+  check_result(saw_work,"Authoritative work gesture reaches "+role)
  if role != "rejected":
   check_result(saw_tree_removed, "Host tree removal reaches existing and late players on " + role)
   check_result(saw_shared_sky, "Sky samples shared host night clock on " + role)

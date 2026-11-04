@@ -6,7 +6,7 @@ const DIRT := 1
 const STONE := 2
 const EMBERSTONE := 3
 const WOOD := 4
-const TEXTURES := {0: preload("res://assets/terrain.png"), 1: preload("res://assets/icons/emberstone.svg"), 2: preload("res://assets/icons/planks.svg")}
+const TEXTURES := {0: preload("res://assets/terrain.svg"), 1: preload("res://assets/icons/emberstone.svg"), 2: preload("res://assets/icons/planks.svg")}
 const WALLS := {
  1: {"item": "dirt_wall", "source": 0, "atlas": Vector2i(1,0)},
  2: {"item": "stone_wall", "source": 0, "atlas": Vector2i(2,0)},

@@ -7,6 +7,7 @@ var network: Node
 var items: Node2D
 var combat: Node2D
 var encounter: Node2D
+var effects: Node2D
 var storage: Node2D
 var boss_ui: Control
 var saves: Node
@@ -18,6 +19,8 @@ var sky: Control
 @onready var world = $World
 
 func _ready() -> void:
+ $HUD/Panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
+ $HUD/Panel/Label.add_theme_font_size_override("font_size",12)
  ambient = CanvasModulate.new()
  add_child(ambient)
  RenderingServer.set_default_clear_color(Color("8aabb0"))
@@ -48,6 +51,10 @@ func _ready() -> void:
  storage.name = "Storage"
  storage.set_script(preload("res://scripts/storage_service.gd"))
  add_child(storage)
+ effects = Node2D.new()
+ effects.name = "VisualEffects"
+ effects.set_script(preload("res://scripts/visuals/effects.gd"))
+ add_child(effects)
  saves = Node.new()
  saves.name = "Saves"
  saves.set_script(preload("res://scripts/save_service.gd"))
@@ -130,6 +137,7 @@ func reset_players() -> void:
 
 func _create_network_ui() -> void:
  var panel := HBoxContainer.new()
+ panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  panel.position = Vector2(14, 470)
  $HUD.add_child(panel)
  var address := LineEdit.new()

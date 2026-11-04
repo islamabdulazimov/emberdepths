@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Art = preload("res://scripts/visuals/art_direction.gd")
 const Recipes = preload("res://data/recipes.gd")
 const Items = preload("res://data/items.gd")
 var main: Node2D
@@ -19,9 +20,12 @@ var storage_slots: Array = []
 var storage_revision := 0
 var source_box := false
 var notice_left := 0.0
+var visual_alpha := 0.0
+var art_theme: Theme
 
 func _ready() -> void:
  main = get_parent()
+ art_theme = Art.theme()
  layer = 3
  var quick := HBoxContainer.new()
  quick.position = Vector2(14, 128)
@@ -32,6 +36,7 @@ func _ready() -> void:
   quick_buttons.append(button)
   button.pressed.connect(func(): main.interaction.selected_slot = i)
  bag = PanelContainer.new()
+ bag.theme = art_theme
  bag.position = Vector2(14, 200)
  add_child(bag)
  var layout := VBoxContainer.new()
@@ -49,6 +54,7 @@ func _ready() -> void:
   button.pressed.connect(func(): _click_slot(i))
  bag.hide()
  crafting = PanelContainer.new()
+ crafting.theme = art_theme
  crafting.position = Vector2(708, 200)
  add_child(crafting)
  var scroll := ScrollContainer.new()
@@ -79,6 +85,7 @@ func _ready() -> void:
  feedback.hide()
  feedback.mouse_filter = Control.MOUSE_FILTER_IGNORE
  storage_panel = PanelContainer.new()
+ storage_panel.theme = art_theme
  storage_panel.position = Vector2(708,200)
  add_child(storage_panel)
  var storage_layout := VBoxContainer.new()
@@ -105,6 +112,7 @@ func _ready() -> void:
 
 func _slot_button() -> Button:
  var button := Button.new()
+ button.theme = art_theme
  button.custom_minimum_size = Vector2(64, 56)
  button.focus_mode = Control.FOCUS_NONE
  button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -147,6 +155,8 @@ func _click_slot(index: int) -> void:
  refresh()
 
 func _process(delta: float) -> void:
+ visual_alpha = move_toward(visual_alpha,1.0 if opened else 0.0,delta*9)
+ for panel in [bag,crafting,storage_panel]: panel.modulate.a = visual_alpha
  notice_left = maxf(0,notice_left-delta)
  if not opened: feedback.visible = notice_left > 0
  clock += delta
@@ -227,8 +237,8 @@ func _paint(button: Button, slot: Dictionary, number: String, selected: bool) ->
  if slot.count > 0:
   button.icon = Items.icon(slot.item)
  var style := StyleBoxFlat.new()
- style.bg_color = Color("263b43") if not selected else Color("496052")
- style.border_color = Color("ddc98b") if selected else Color("4f666c")
+ style.bg_color = Art.INK if not selected else Art.SHADOW.lightened(0.08)
+ style.border_color = Art.EMBER if selected else Art.SLATE
  style.set_border_width_all(2 if selected else 1)
  button.add_theme_stylebox_override("normal", style)
 

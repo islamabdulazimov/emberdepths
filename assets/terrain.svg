@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="16" viewBox="0 0 48 16" shape-rendering="crispEdges">
+<!-- Original Emberdepths ash-soil/slate atlas. IDs and 16px regions are unchanged. -->
+<path fill="#65534e" d="M0 0h32v16H0z"/>
+<path fill="#725e53" d="M0 5h5v2H0zM8 9h6v2H8zM3 13h4v2H3zM19 3h5v2h-5zM26 10h6v2h-6zM18 13h5v2h-5z"/>
+<path fill="#51454a" d="M1 10h4v1H1zM10 5h5v2h-5zM22 8h4v1h-4zM29 1h3v1h-3z"/>
+<path fill="#334f50" d="M0 0h16v3h-2v2h-2V3H9v1H7V3H3v2H1V3H0z"/>
+<path fill="#6b8d77" d="M0 0h16v1H0zM1 1h3v1H1zM7 1h6v1H7z"/>
+<path fill="#455763" d="M32 0h16v16H32z"/>
+<path fill="#50636c" d="M33 2h7v2h-7zM42 1h6v2h-6zM39 8h8v2h-8zM33 12h6v2h-6z"/>
+<path fill="#394b57" d="M32 5h5v1h-5zM36 5h1v3h-1zM43 11h5v1h-5zM42 12h2v3h-2zM33 15h4v1h-4z"/>
+</svg>

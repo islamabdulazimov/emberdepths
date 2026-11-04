@@ -5,9 +5,11 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
  var ease := t * t * (3.0 - 2.0 * t)
  var walk := clampf(absf(speed) / 48.0, 0.0, 1.0) if phase == "chase" else 0.0
  var step := sin(clock)
- var p := {"offset": Vector2(0, -absf(step) * walk * 1.5 + sin(clock * 0.3) * 0.35), "scale": Vector2.ONE, "lean": 0.0, "rotation": 0.0, "turn": 1.0,
+ var weight_shift := sin(clock*2)*walk
+ var p := {"offset": Vector2(0, -absf(step) * walk * 1.5 + sin(clock * 0.3) * 0.35), "scale": Vector2.ONE, "lean": step*walk*0.025, "rotation": 0.0, "turn": 1.0,
   "front_elbow": Vector2(25, -31), "front_hand": Vector2(24, -19), "back_elbow": Vector2(-25, -32), "back_hand": Vector2(-23, -20),
   "front_foot": Vector2(10 + step * walk * 7, -maxf(0, step) * walk * 4), "back_foot": Vector2(-10 - step * walk * 7, -maxf(0, -step) * walk * 4)}
+ p.scale = Vector2(1+absf(weight_shift)*0.015,1-absf(weight_shift)*0.015)
  p.front_hand.x += step * walk * 6
  p.back_hand.x -= step * walk * 6
  match phase:
@@ -35,7 +37,7 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
    p.front_elbow = Vector2(31,-49).lerp(Vector2(25,-31), ease)
    p.front_hand = Vector2(29,-75).lerp(Vector2(24,-19), ease)
    p.offset = Vector2(4,-3).lerp(Vector2.ZERO, ease)
-   p.lean = 0.12 * (1 - ease)
+   p.lean = 0.12 * (1 - ease)+sin(t*PI*2)*exp(-t*4)*0.025
   "spin_windup":
    p.lean = -0.08 * ease
    p.front_hand = Vector2(24,-19).lerp(Vector2(-8,-44), ease)
@@ -62,6 +64,7 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
    p.back_foot.y -= tuck * 13
   "super_windup":
    p.scale = Vector2(1 + 0.08 * ease, 1 - 0.14 * ease)
+   p.offset.x = sin(elapsed*25)*ease*ease*0.6
    p.front_elbow = Vector2(28,-38)
    p.back_elbow = Vector2(-28,-38)
    p.front_hand = Vector2(21,-51)

@@ -3,6 +3,7 @@ signal terrain_changed(cell: Vector2i, block_id: int)
 signal decoration_changed(kind: String, cell: Vector2i, value: int)
 signal door_changed(anchor: Vector2i, value: int)
 signal attack_started(id: int, direction: Vector2)
+signal work_started(id: int, direction: Vector2, kind: String)
 signal chop_started(id: int, direction: Vector2)
 signal tree_felled(index: int, direction: int)
 signal inventory_changed(id: int)
@@ -50,6 +51,7 @@ func try_edit(body: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Arra
  else:
   inventory.take_one(slot)
   inventory_changed.emit(id)
+ if block_id != -1: animate_work(body,cell,"build")
  terrain_changed.emit(cell, block_id)
  _check_torch_support()
  _check_door_support()
@@ -318,6 +320,13 @@ func finish_medicine(body: CharacterBody2D, slot: int) -> bool:
  inventory_changed.emit(id)
  return true
 
+func animate_work(body: CharacterBody2D, cell: Vector2i, kind: String = "punch") -> void:
+ if not main.combat.authoritative() or body.dead or body.work_remaining > 0.03 or body.swing_remaining > 0: return
+ if kind not in ["pick","build","punch"]: return
+ var direction: Vector2 = (main.world.cell_center(cell)-body.position).normalized()
+ body.play_work(direction,kind)
+ work_started.emit(int(str(body.name)),direction,kind)
+
 func animate_chop(body: CharacterBody2D, cell: Vector2i, slot: int) -> void:
  if not main.combat.authoritative() or primary_status(body,cell,slot) != "Можно рубить дерево": return
  var id := int(str(body.name))
@@ -350,6 +359,7 @@ func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   main.world.apply_door(cell,0)
   inventory_for(int(str(body.name))).take_one(slot)
   inventory_changed.emit(int(str(body.name)))
+  animate_work(body,cell,"build")
   door_changed.emit(cell,0)
   return true
  if kind == "solid":
@@ -361,6 +371,7 @@ func place_selected(body: CharacterBody2D, cell: Vector2i, slot: int) -> bool:
   return false
  var value: int = int(definition.wall) if kind == "wall" else 1
  main.world.apply_decoration(kind, cell, value)
+ animate_work(body,cell,"build")
  decoration_changed.emit(kind, cell, value)
  var id := int(str(body.name))
  inventory_for(id).take_one(slot)

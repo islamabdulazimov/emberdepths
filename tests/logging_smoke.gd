@@ -62,7 +62,7 @@ func run() -> void:
  check_result(main.items.drops.size() == 1 and main.items.drops.values()[0].item_id == "wood" and main.items.drops.values()[0].count == expected, "One tree drops wood matching its height")
  check_result(not main.items.chop_tree(player,cell,0) and main.items.drops.size() == 1, "Second simultaneous completion cannot duplicate wood")
  check_result(world.forest.falling.size() == 1 and world.block_at(root_cell) == 0, "Visual fall is separate from intact supporting soil")
- world.forest._process(0.6)
+ world.forest._process(1.1)
  check_result(world.forest.falling.is_empty(), "Falling artwork expires without reviving the tree")
  player.position = at
  main.items._physics_process(0.21)

@@ -51,9 +51,11 @@ func entity_data(id: int) -> Dictionary:
  var body = entities[id]
  return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun}
 
-func set_entity(id: int, data: Dictionary) -> void:
+func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
  if data.is_empty():
   if entities.has(id):
+   if visual_remove and is_instance_valid(main.get("effects")):
+    main.effects.burst("spirit" if entities[id].kind == "spirit" else "death",entities[id].position+Vector2(0,-5))
    remove_child(entities[id])
    entities[id].queue_free()
    entities.erase(id)
@@ -290,7 +292,7 @@ func hit_entity(id: int, damage: int, direction: Vector2) -> bool:
   var defeated_kind: String = enemy.kind
   var at: Vector2 = enemy.position
   var loot: String = Rules.ENEMIES[enemy.kind].loot
-  set_entity(id, {})
+  set_entity(id, {},true)
   entity_changed.emit(id, {})
   if loot != "":
    main.items.spawn_drop(loot, 1, at)

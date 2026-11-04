@@ -10,6 +10,7 @@ var hurt_flash := 0.0
 var hit_stun := 0.0
 var clock := 0.0
 var night := false
+var visual_health := -1
 
 func _ready() -> void:
  collision_layer = 8
@@ -23,33 +24,17 @@ func _ready() -> void:
  z_index = 3
 
 func _process(delta: float) -> void:
+ if visual_health >= 0 and health < visual_health:
+  var main := get_parent().get_parent()
+  if is_instance_valid(main.get("effects")): main.effects.burst("hurt",position+Vector2(0,-6))
+ visual_health = health
  clock += delta
  hurt_flash = maxf(0.0, hurt_flash - delta)
  queue_redraw()
 
 func _draw() -> void:
- if kind == "spirit":
-  var shift := sin(clock * 6.0) * 1.5
-  draw_set_transform(Vector2(0, shift))
-  draw_colored_polygon(PackedVector2Array([Vector2(-7,-6), Vector2(-4,-14), Vector2(3,-16), Vector2(7,-9), Vector2(4,1), Vector2(0,-2), Vector2(-4,1)]), Color("abd7d1") if hurt_flash <= 0 else Color.WHITE)
-  draw_rect(Rect2(-4, -10, 2, 3), Color("304b63"))
-  draw_rect(Rect2(2, -10, 2, 3), Color("304b63"))
-  for i in range(3):
-   draw_rect(Rect2(-3 + i * 3, 2 + shift + i, 2, 3), Color(0.55, 0.78, 0.8, 0.3))
- else:
-  var stride := sin(clock * 14)
-  var moving := clampf(absf(velocity.x) / 34.0, 0, 1)
-  var squash := stride * moving * 0.035
-  draw_set_transform(Vector2(0, -absf(stride) * moving), 0, Vector2(1 + squash, 1 - squash))
-  var body_color := Color("667167") if hurt_flash <= 0 else Color("e0b09c")
-  draw_colored_polygon(PackedVector2Array([Vector2(-8,0),Vector2(-8,-6),Vector2(-5,-12),Vector2(3,-14),Vector2(8,-7),Vector2(8,0)]), body_color)
-  draw_rect(Rect2(-5, -12, 3, 7), Color("8a9180"))
-  draw_rect(Rect2(0, -11, 2, 5), Color("424f50"))
-  var look := 1 if velocity.x >= 0 else -1
-  draw_rect(Rect2(look * 4 - 1, -8, 3, 2), Color("f2ad66") if night else Color("d8cc8a"))
-  for i in range(3):
-   var step := sin(clock * 14 + i * PI)
-   draw_rect(Rect2(-6 + i * 5 + step * moving * 2, -maxf(0, step) * moving, 2, 3), Color("3a494a"))
- draw_set_transform_matrix(Transform2D.IDENTITY)
- draw_rect(Rect2(-8, -21, 16, 2), Color("413946"))
- draw_rect(Rect2(-8, -21, 16 * float(health) / max_health, 2), Color("e49979") if kind == "ashling" else Color("a4deda"))
+ var art = preload("res://scripts/visuals/enemy_art.gd")
+ if kind == "spirit": art.draw_spirit(self,clock,velocity,hurt_flash)
+ else: art.draw_ashling(self,clock,velocity,hurt_flash,night)
+ draw_rect(Rect2(-8,-23,16,2),Color("18252e"))
+ draw_rect(Rect2(-8,-23,16*float(health)/max_health,2),Color("bd8058") if kind == "ashling" else Color("88aaa9"))

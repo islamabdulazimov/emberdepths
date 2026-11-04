@@ -144,6 +144,7 @@ func startup() -> void:
 
 func _build_ui() -> void:
  var row := HBoxContainer.new()
+ row.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  row.position = Vector2(708, 128)
  main.get_node("HUD").add_child(row)
  save_button = _button(row, "Сохранить", "Сохранить мир и всех персонажей на хосте", func(): save_now())

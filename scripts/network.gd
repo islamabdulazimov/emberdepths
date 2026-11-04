@@ -33,6 +33,7 @@ func _ready() -> void:
  main.storage.view_changed.connect(_storage_view)
  main.items.attack_started.connect(_attack_started)
  main.items.chop_started.connect(_chop_started)
+ main.items.work_started.connect(_work_started)
  main.items.tree_felled.connect(_tree_felled)
  main.items.inventory_changed.connect(_inventory_changed)
  main.items.drop_changed.connect(_drop_changed)
@@ -291,6 +292,7 @@ func _physics_process(delta: float) -> void:
    main.items.use_primary(body, cell, command.slot)
   elif command.mode == 1 and primary.begins_with("Можно"):
    if definition.get("kind", "") == "axe": main.items.animate_chop(body,cell,command.slot)
+   else: main.items.animate_work(body,cell,"pick" if definition.get("kind","") == "tool" else "punch")
    var progress: Dictionary = mining.get(id, {"cell": cell, "slot": command.slot, "time": 0.0})
    if progress.cell != cell or progress.slot != command.slot:
     progress = {"cell": cell, "slot": command.slot, "time": 0.0}
@@ -317,6 +319,7 @@ func _physics_process(delta: float) -> void:
 
 @rpc("authority", "call_remote", "reliable", 0)
 func terrain_edit(cell: Vector2i, block_id: int) -> void:
+ main.effects.burst("mine" if block_id == -1 else "place",main.world.cell_center(cell))
  main.world.apply_edit(cell, block_id)
 
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
@@ -424,10 +427,12 @@ func request_move_storage(anchor: Vector2i, from_box: bool, source: int, to_box:
 
 
 func _terrain_changed(cell: Vector2i, block_id: int) -> void:
+ main.effects.burst("mine" if block_id == -1 else "place",main.world.cell_center(cell))
  if active and connected and multiplayer.is_server():
   _broadcast("terrain_edit", [cell, block_id])
 
 func _decoration_changed(kind: String, cell: Vector2i, value: int) -> void:
+ main.effects.burst("place",main.world.cell_center(cell))
  if active and connected and multiplayer.is_server():
   _broadcast("sync_decoration", [kind, cell, value])
 
@@ -452,11 +457,21 @@ func request_toggle_door(cell: Vector2i, slot: int) -> void:
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_decoration(kind: String, cell: Vector2i, value: int) -> void:
+ main.effects.burst("place",main.world.cell_center(cell))
  main.world.apply_decoration(kind, cell, value)
 
 func _attack_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server():
   _broadcast("sync_attack", [id, direction, bool(main.items.attack_profiles.get(id, {}).get("unarmed", false))])
+
+func _work_started(id: int, direction: Vector2, kind: String) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_work",[id,direction,kind])
+
+@rpc("authority", "call_remote", "unreliable_ordered", 3)
+func sync_work(id: int, direction: Vector2, kind: String) -> void:
+ if kind not in ["pick","build","punch"]: return
+ var body = main.get_node("Players").get_node_or_null(str(id))
+ if body != null and not body.dead: body.play_work(direction,kind)
 
 func _chop_started(id: int, direction: Vector2) -> void:
  if active and connected and multiplayer.is_server(): _broadcast("sync_chop",[id,direction])
@@ -507,7 +522,7 @@ func _entity_changed(id: int, data: Dictionary) -> void:
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_entity(id: int, data: Dictionary) -> void:
- main.combat.set_entity(id, data)
+ main.combat.set_entity(id,data,data.is_empty())
 
 func _chest_changed(id: int, data: Dictionary) -> void:
  if active and connected and multiplayer.is_server():

@@ -32,14 +32,18 @@ func _draw() -> void:
  var top := -8 - (Structures.DOOR_HEIGHT-1)*16
  var height := Structures.DOOR_HEIGHT*16
  # The leaf folds into the doorway; adjacent world cells remain free.
- draw_rect(Rect2(-8,top,2,height),Color("574539"))
- draw_rect(Rect2(6,top,2,height),Color("574539"))
+ draw_rect(Rect2(-8,top,2,height),Color("293b46"))
+ draw_rect(Rect2(6,top,2,height),Color("293b46"))
  draw_rect(Rect2(-8,top,16,2),Color("c09a68"))
- var width := lerpf(12,3,visual_open)
- draw_rect(Rect2(-6,top+2,width,height-2),Color("99734f"))
+ var width := roundf(lerpf(12,3,smoothstep(0,1,visual_open)))
+ draw_rect(Rect2(-6,top+2,width,height-2),Color("866451"))
  for x in range(0,3):
   if x*4 >= width: break
   draw_rect(Rect2(-6+x*4,top+3,1,height-4),Color("c09a68"))
  for y in [top+10,top+height-10]:
-  draw_rect(Rect2(-6,y,width,2),Color("4a4d45"))
+  draw_rect(Rect2(-6,y,width,2),Color("455d68"))
  draw_rect(Rect2(-8+width,-12,2,3),Color("d7bc77"))
+
+ # Small copper hinges stay fixed while the door leaf moves.
+ for y in [top+8,top+height-10]:
+  draw_rect(Rect2(-7,y,2,3),Color("bd8058"))
