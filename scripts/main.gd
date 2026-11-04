@@ -19,9 +19,14 @@ func _ready() -> void:
  camera.limit_top = 0
  camera.limit_bottom = world.world_depth * 16
  camera.reset_smoothing()
- $HUD/Panel/Label.text = "EMBERDEPTHS  ·  ЭТАП 1
-A / D — движение     Space — прыжок
-Seed: %d   ·   Кооператив: ещё не подключён" % world.world_seed
+ var interaction := Node2D.new()
+ interaction.set_script(preload("res://scripts/interaction.gd"))
+ interaction.world = world
+ interaction.player = player
+ interaction.bodies = $Players
+ interaction.label = $HUD/Panel/Label
+ interaction.z_index = 5
+ add_child(interaction)
 
 func _physics_process(_delta: float) -> void:
  player.submit_command(Input.get_axis("move_left", "move_right"), Input.is_action_just_pressed("jump"))

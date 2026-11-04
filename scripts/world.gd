@@ -58,3 +58,57 @@ func generate() -> void:
 
 func spawn_position() -> Vector2:
  return Vector2((world_width / 2) * 16 + 8, 22 * 16 - 24)
+
+# Only this boundary mutates terrain; the future host will validate requests here.
+const REACH := 80.0
+var changes: Dictionary = {} # Vector2i -> stable block ID; -1 means mined air.
+
+func cell_at(global_point: Vector2) -> Vector2i:
+ return solid.local_to_map(solid.to_local(global_point))
+
+func cell_center(cell: Vector2i) -> Vector2:
+ return solid.to_global(solid.map_to_local(cell))
+
+func block_at(cell: Vector2i) -> int:
+ if solid.get_cell_source_id(cell) == -1:
+  return -1
+ var atlas := solid.get_cell_atlas_coords(cell)
+ for id in Blocks.DEFINITIONS:
+  if Blocks.DEFINITIONS[id].atlas == atlas:
+   return id
+ return -1
+
+func interaction_status(actor: CharacterBody2D, cell: Vector2i, placing: bool, bodies: Array) -> String:
+ if cell.x < 0 or cell.x >= world_width or cell.y < 0 or cell.y >= world_depth:
+  return "За границей мира"
+ if actor.global_position.distance_to(cell_center(cell)) > REACH:
+  return "Слишком далеко"
+ if not placing:
+  return "Можно добыть" if block_at(cell) != -1 else "Пустая клетка"
+ if block_at(cell) != -1:
+  return "Клетка занята"
+ var area := Rect2(cell_center(cell) - Vector2(8, 8), Vector2(16, 16))
+ for body in bodies:
+  var collider: CollisionShape2D = body.get_node("Collision")
+  var body_area: Rect2 = collider.global_transform * collider.shape.get_rect()
+  if area.intersects(body_area):
+   return "Мешает персонаж"
+ # Blocks must attach to terrain or an existing background wall.
+ var anchored := walls.get_cell_source_id(cell) != -1
+ for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+  if block_at(cell + offset) != -1:
+   anchored = true
+ return "Можно построить" if anchored else "Нет опоры"
+
+func request_edit(actor: CharacterBody2D, cell: Vector2i, block_id: int, bodies: Array) -> bool:
+ if block_id != -1 and not Blocks.DEFINITIONS.has(block_id):
+  return false
+ var expected := "Можно построить" if block_id != -1 else "Можно добыть"
+ if interaction_status(actor, cell, block_id != -1, bodies) != expected:
+  return false
+ if block_id == -1:
+  solid.erase_cell(cell)
+ else:
+  solid.set_cell(cell, 0, Blocks.DEFINITIONS[block_id].atlas)
+ changes[cell] = block_id
+ return true
