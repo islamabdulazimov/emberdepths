@@ -30,12 +30,17 @@ func _process(delta: float) -> void:
 func _draw() -> void:
  if kind == "spirit":
   var shift := sin(clock * 6.0) * 1.5
+  draw_set_transform(Vector2(0, shift))
   draw_colored_polygon(PackedVector2Array([Vector2(-7,-6), Vector2(-4,-14), Vector2(3,-16), Vector2(7,-9), Vector2(4,1), Vector2(0,-2), Vector2(-4,1)]), Color("abd7d1") if hurt_flash <= 0 else Color.WHITE)
-  draw_rect(Rect2(-4, -10 + shift, 2, 3), Color("304b63"))
-  draw_rect(Rect2(2, -10 + shift, 2, 3), Color("304b63"))
+  draw_rect(Rect2(-4, -10, 2, 3), Color("304b63"))
+  draw_rect(Rect2(2, -10, 2, 3), Color("304b63"))
   for i in range(3):
    draw_rect(Rect2(-3 + i * 3, 2 + shift + i, 2, 3), Color(0.55, 0.78, 0.8, 0.3))
  else:
+  var stride := sin(clock * 14)
+  var moving := clampf(absf(velocity.x) / 34.0, 0, 1)
+  var squash := stride * moving * 0.035
+  draw_set_transform(Vector2(0, -absf(stride) * moving), 0, Vector2(1 + squash, 1 - squash))
   var body_color := Color("667167") if hurt_flash <= 0 else Color("e0b09c")
   draw_colored_polygon(PackedVector2Array([Vector2(-8,0),Vector2(-8,-6),Vector2(-5,-12),Vector2(3,-14),Vector2(8,-7),Vector2(8,0)]), body_color)
   draw_rect(Rect2(-5, -12, 3, 7), Color("8a9180"))
@@ -43,6 +48,8 @@ func _draw() -> void:
   var look := 1 if velocity.x >= 0 else -1
   draw_rect(Rect2(look * 4 - 1, -8, 3, 2), Color("f2ad66") if night else Color("d8cc8a"))
   for i in range(3):
-   draw_rect(Rect2(-6 + i * 5, -1, 2, 3 + sin(clock * 14 + i) * 1.5), Color("3a494a"))
+   var step := sin(clock * 14 + i * PI)
+   draw_rect(Rect2(-6 + i * 5 + step * moving * 2, -maxf(0, step) * moving, 2, 3), Color("3a494a"))
+ draw_set_transform_matrix(Transform2D.IDENTITY)
  draw_rect(Rect2(-8, -21, 16, 2), Color("413946"))
  draw_rect(Rect2(-8, -21, 16 * float(health) / max_health, 2), Color("e49979") if kind == "ashling" else Color("a4deda"))

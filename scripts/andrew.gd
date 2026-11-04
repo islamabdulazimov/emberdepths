@@ -1,4 +1,8 @@
 extends CharacterBody2D
+const Pose = preload("res://scripts/visuals/andrew_pose.gd")
+var visual_clock := 0.0
+var visual_pose: Dictionary = {}
+var visual_hit := 0.0
 var encounter: Node2D
 var state: RefCounted
 var definition: Dictionary
@@ -38,6 +42,7 @@ func enter_phase(value: String, duration: float) -> void:
 func take_hit(damage: int, poise_damage: int) -> bool:
  if not encounter.authoritative() or not state.active or damage <= 0:
   return false
+ visual_hit = 0.12
  state.health = maxi(0, state.health - damage)
  if state.health == 0:
   encounter.end_fight("defeated")
@@ -234,6 +239,7 @@ func snapshot() -> Dictionary:
  return {"state": state.snapshot(), "position": position, "velocity": velocity, "phase": phase, "phase_revision": phase_revision, "elapsed": phase_elapsed, "duration": phase_duration, "facing": facing, "target": locked_target, "indicator": indicator_active}
 
 func apply(data: Dictionary) -> void:
+ if int(data.state.health) < state.health: visual_hit = 0.12
  state.apply(data.state)
  if int(data.get("phase_revision", 0)) < phase_revision: return
  phase_revision = int(data.get("phase_revision", 0))
@@ -267,42 +273,78 @@ func _draw() -> void:
  if phase == "stunned":
   for i in range(3):
    draw_rect(Rect2(Vector2(sin(phase_elapsed * 5 + i * TAU / 3) * 16, -76 + cos(phase_elapsed * 5 + i * TAU / 3) * 3), Vector2(3,3)), Color("f6d68d"))
- var angle := 0.0
- if phase == "spin_active": angle = facing * TAU * clampf(phase_elapsed / phase_duration, 0, 1)
- if phase == "backflip": angle = -facing * TAU * clampf(phase_elapsed / phase_duration, 0, 1)
- var transform := Transform2D(angle, Vector2.ZERO)
+ # Transform only the artwork. World-space warning geometry above stays exact.
+ var pose: Dictionary = visual_pose if not visual_pose.is_empty() else Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
+ var turn_width: float = 0.35 + 0.65 * absf(float(pose.turn))
+ var transform := Transform2D(float(pose.rotation) * facing, Vector2.ZERO)
  var pivot := Vector2(0,-28)
  transform.origin = pivot - transform * pivot
+ transform = Transform2D(float(pose.lean) * facing, Vector2(pose.scale) * Vector2(facing * turn_width, 1), 0, pose.offset) * transform
  draw_set_transform_matrix(transform)
  var skin := Color("e4bba0")
- var shade := Color("c3927e")
- if phase == "super_windup": skin = Color("f17672")
- # Hair silhouette, torso, prominent belly, squared jaw and broad shoulders.
- draw_rect(Rect2(-12, -69, 24, 32), Color("705445"))
- draw_rect(Rect2(-8, -67, 16, 16), skin)
- draw_rect(Rect2(-10, -55, 20, 8), skin)
- draw_rect(Rect2(-5, -59, 3, 2), Color("38404a"))
- draw_rect(Rect2(3, -59, 3, 2), Color("38404a"))
- draw_rect(Rect2(-5, -50, 10, 2), shade)
- draw_rect(Rect2(-19, -47, 38, 20), skin)
- draw_rect(Rect2(-15, -44, 12, 8), shade)
- draw_rect(Rect2(3, -44, 12, 8), shade)
- draw_colored_polygon(PackedVector2Array([Vector2(-18,-32),Vector2(-23,-24),Vector2(-23,-14),Vector2(-16,-7),Vector2(16,-7),Vector2(23,-14),Vector2(23,-24),Vector2(18,-32)]), skin)
- draw_rect(Rect2(-1, -20, 2, 3), shade)
- var pose := phase == "intro"
- for side in [-1, 1]:
-  var shoulder := Vector2(side * 18, -42)
-  var elbow := Vector2(side * (31 if pose else 25), -43 if pose else -28)
-  var hand := Vector2(side * (27 if pose else 23), -61 if pose else (-70 if phase == "uppercut_active" and side == facing else -16))
-  draw_line(shoulder, elbow, skin, 10)
-  draw_line(elbow, hand, skin, 9)
-  draw_rect(Rect2(hand - Vector2(4, 4), Vector2(8, 8)), skin)
- draw_rect(Rect2(-17, -10, 34, 9), Color("394b58"))
- draw_rect(Rect2(-15, -1, 11, 3), skin)
- draw_rect(Rect2(4, -1, 11, 3), skin)
+ var shade := Color("ba8875")
+ var light := Color("f2d1b4")
+ if phase == "super_windup":
+  skin = skin.lerp(Color("ed6962"), smoothstep(0.0, 0.8, phase_elapsed / phase_duration))
+  light = light.lerp(Color("ffaca0"), 0.7)
+ if visual_hit > 0: skin = skin.lerp(Color.WHITE, 0.65)
+ # Far limbs first, then torso and near arm; feet bend instead of changing length.
+ _draw_arm(Vector2(-17,-43), pose.back_elbow, pose.back_hand, shade)
+ _draw_leg(Vector2(-10,-14), pose.back_foot, shade)
+ _draw_leg(Vector2(10,-14), pose.front_foot, skin)
+ draw_rect(Rect2(-13,-69,26,33), Color("3c3037"))
+ draw_rect(Rect2(-11,-68,22,30), Color("705445"))
+ draw_rect(Rect2(-8,-65,16,15), skin)
+ draw_rect(Rect2(-10,-54,20,8), skin)
+ draw_rect(Rect2(-9,-68,18,4), Color("594239"))
+ draw_rect(Rect2(2,-59,3,2), Color("30303c"))
+ draw_rect(Rect2(7,-57,3,4), shade)
+ draw_rect(Rect2(2,-50,6,2), shade)
+ draw_rect(Rect2(-19,-47,38,20), skin)
+ draw_rect(Rect2(-15,-44,12,7), shade)
+ draw_rect(Rect2(3,-44,12,7), shade)
+ draw_rect(Rect2(-13,-45,9,2), light)
+ draw_rect(Rect2(4,-45,10,2), light)
+ draw_colored_polygon(PackedVector2Array([Vector2(-18,-32),Vector2(-23,-25),Vector2(-23,-21),Vector2(-17,-14),Vector2(17,-14),Vector2(23,-21),Vector2(23,-25),Vector2(18,-32)]), skin)
+ draw_line(Vector2(-19,-21),Vector2(-14,-16),shade,2)
+ draw_rect(Rect2(-1,-26,2,3),shade)
+ draw_rect(Rect2(-17,-17,34,8),Color("394b58"))
+ draw_rect(Rect2(-16,-17,32,2),Color("647785"))
+ _draw_arm(Vector2(17,-43), pose.front_elbow, pose.front_hand, skin)
+ draw_set_transform_matrix(Transform2D.IDENTITY)
+ # Short motion trails are cosmetic; damage still follows the existing phase.
+ if phase == "uppercut_active":
+  draw_arc(Vector2(facing * 13,-39), 28, -1.3 if facing > 0 else PI-0.3, 0.3 if facing > 0 else PI+1.3, 10, Color(1,0.82,0.61,0.4),2)
+ if phase == "spin_active":
+  draw_arc(Vector2(0,-36), 49, visual_clock, visual_clock + PI * 0.8, 18, Color(1,0.82,0.61,0.4),2)
+
+func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) -> void:
+ draw_line(shoulder, elbow, Color("674e4e"), 12)
+ draw_line(elbow, hand, Color("674e4e"), 10)
+ draw_line(shoulder, elbow, skin, 10)
+ draw_line(elbow, hand, skin, 8)
+ draw_rect(Rect2(hand.round() - Vector2(4,4),Vector2(8,8)),skin)
+ draw_line(shoulder + Vector2(0,-2), elbow + Vector2(0,-2), skin.lightened(0.08), 2)
+
+func _draw_leg(hip: Vector2, foot: Vector2, skin: Color) -> void:
+ var knee := hip.lerp(foot,0.5) + Vector2(3,-1)
+ draw_line(hip,knee,Color("674e4e"),9)
+ draw_line(knee,foot - Vector2(0,2),skin,7)
+ draw_rect(Rect2(foot.round() - Vector2(4,3),Vector2(10,3)),Color("8c675e"))
 
 
 func _process(delta: float) -> void:
+ visual_clock += delta * (2.0 + absf(velocity.x) * 0.13)
+ visual_hit = maxf(0, visual_hit - delta)
+ var target_pose := Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
+ if visual_pose.is_empty(): visual_pose = target_pose
+ else:
+  var blend := 1.0 - exp(-28.0 * delta)
+  for key in target_pose:
+   # Rotations complete exactly one revolution, without interpolating across TAU.
+   if key in ["rotation", "turn"]: visual_pose[key] = target_pose[key]
+   elif target_pose[key] is Vector2: visual_pose[key] = Vector2(visual_pose[key]).lerp(target_pose[key], blend)
+   else: visual_pose[key] = lerpf(float(visual_pose[key]), float(target_pose[key]), blend)
  if not encounter.authoritative():
   position = position.lerp(remote_target, minf(1, delta * 22))
   phase_elapsed += delta
