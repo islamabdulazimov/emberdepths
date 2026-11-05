@@ -1,6 +1,12 @@
 extends CharacterBody2D
 const Battle = preload("res://data/battle.gd")
 const Pose = preload("res://scripts/visuals/andrew_pose.gd")
+var motion_track = preload("res://scripts/visuals/motion_track.gd").new()
+var visual_facing := 1
+var visual_target_facing := 1
+var visual_turn_age := 0.12
+var visual_turn_width := 1.0
+var visual_facing_initialized := false
 var visual_clock := 0.0
 var visual_pose: Dictionary = {}
 var visual_phase := ""
@@ -297,11 +303,11 @@ func _draw() -> void:
   draw_rect(Rect2(-18,-1,36,2),Color(0.06,0.10,0.13,0.24))
  # Transform only the artwork. World-space warning geometry above stays exact.
  var pose: Dictionary = visual_pose if not visual_pose.is_empty() else Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
- var turn_width: float = 0.35 + 0.65 * absf(float(pose.turn))
- var transform := Transform2D(float(pose.rotation) * facing, Vector2.ZERO)
+ var turn_width: float = (0.16+0.84*absf(float(pose.turn)))*visual_turn_width
+ var transform := Transform2D(float(pose.rotation) * visual_facing, Vector2.ZERO)
  var pivot := Vector2(0,-28)
  transform.origin = pivot - transform * pivot
- transform = Transform2D(float(pose.lean) * facing, Vector2(pose.scale) * Vector2(facing * turn_width, 1), 0, pose.offset) * transform
+ transform = Transform2D(float(pose.lean) * visual_facing, Vector2(pose.scale) * Vector2(visual_facing * turn_width, 1), 0, pose.offset) * transform
  draw_set_transform_matrix(transform)
  preload("res://scripts/visuals/andrew_art.gd").draw_body(self,pose,phase,visual_hit,visual_clock)
  draw_set_transform_matrix(Transform2D.IDENTITY)
@@ -316,14 +322,14 @@ func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) ->
  draw_line(elbow, hand, Color("18252e"), 10)
  draw_line(shoulder, elbow, skin, 10)
  draw_line(elbow, hand, skin, 8)
- draw_rect(Rect2(hand.round() - Vector2(4,4),Vector2(8,8)),skin)
+ draw_rect(Rect2(hand - Vector2(4,4),Vector2(8,8)),skin)
  draw_line(shoulder + Vector2(0,-2), elbow + Vector2(0,-2), skin.lightened(0.08), 2)
 
 func _draw_leg(hip: Vector2, foot: Vector2, skin: Color) -> void:
  var knee := hip.lerp(foot,0.5) + Vector2(3,-1)
  draw_line(hip,knee,Color("18252e"),9)
  draw_line(knee,foot - Vector2(0,2),skin,7)
- draw_rect(Rect2(foot.round() - Vector2(4,3),Vector2(10,3)),Color("293b46"))
+ draw_rect(Rect2(foot - Vector2(4,3),Vector2(10,3)),Color("293b46"))
 
 
 func emit_visual(kind: String, at: Vector2) -> void:
@@ -331,6 +337,16 @@ func emit_visual(kind: String, at: Vector2) -> void:
  if is_instance_valid(main) and is_instance_valid(main.get("effects")): main.effects.burst(kind,at)
 
 func _process(delta: float) -> void:
+ if not visual_facing_initialized:
+  visual_facing = facing
+  visual_target_facing = facing
+  visual_facing_initialized = true
+ if facing != visual_target_facing:
+  visual_target_facing = facing
+  visual_turn_age = 0
+ visual_turn_age = minf(0.12,visual_turn_age+delta)
+ if visual_turn_age >= 0.06: visual_facing = visual_target_facing
+ visual_turn_width = 1-sin(visual_turn_age/0.12*PI)*0.65
  if visual_phase != phase:
   if phase == "super_impact": emit_visual("impact",position)
   elif phase == "intro": emit_visual("respawn",position+Vector2(0,-35))
@@ -338,7 +354,8 @@ func _process(delta: float) -> void:
   visual_phase = phase
  visual_clock += delta * (2.0 + absf(velocity.x) * 0.13)
  visual_hit = maxf(0, visual_hit - delta)
- var target_pose := Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
+ var render_time: float = motion_track.advance(phase,phase_elapsed,delta,phase_duration)
+ var target_pose := Pose.sample(phase,render_time,phase_duration,visual_clock,velocity.x)
  if visual_pose.is_empty(): visual_pose = target_pose
  else:
   var blend := 1.0 - exp(-28.0 * delta)

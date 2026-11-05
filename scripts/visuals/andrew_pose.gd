@@ -2,7 +2,7 @@ extends RefCounted
 # Presentation only: never drives collisions, timers, hitboxes or network state.
 static func sample(phase: String, elapsed: float, duration: float, clock: float, speed: float) -> Dictionary:
  var t := clampf(elapsed / maxf(duration, 0.001), 0.0, 1.0)
- var ease := t * t * (3.0 - 2.0 * t)
+ var ease := t*t*t*(t*(t*6-15)+10)
  var walk := clampf(absf(speed) / 48.0, 0.0, 1.0) if phase == "chase" else 0.0
  var step := sin(clock)
  var weight_shift := sin(clock*2)*walk
@@ -46,10 +46,11 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
   "spin_active":
    # Turn around the vertical axis, rather than cartwheeling the entire body.
    p.turn = cos(t * TAU)
-   p.front_elbow = Vector2(35,-41)
-   p.front_hand = Vector2(53,-40)
-   p.back_elbow = Vector2(-35,-41)
-   p.back_hand = Vector2(-53,-40)
+   var spread := smoothstep(0,0.2,t)
+   p.front_elbow = Vector2(19,-40).lerp(Vector2(35,-41),spread)
+   p.front_hand = Vector2(-8,-44).lerp(Vector2(53,-40),spread)
+   p.back_elbow = Vector2(-25,-32).lerp(Vector2(-35,-41),spread)
+   p.back_hand = Vector2(-34,-42).lerp(Vector2(-53,-40),spread)
   "spin_recovery":
    p.front_elbow = Vector2(35,-41).lerp(Vector2(25,-31), ease)
    p.front_hand = Vector2(53,-40).lerp(Vector2(24,-19), ease)
@@ -58,8 +59,8 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
   "backflip":
    p.rotation = -TAU * ease
    var tuck := sin(t * PI)
-   p.front_hand = Vector2(14,-28)
-   p.back_hand = Vector2(-14,-28)
+   p.front_hand = Vector2(24,-19).lerp(Vector2(14,-28),tuck)
+   p.back_hand = Vector2(-23,-20).lerp(Vector2(-14,-28),tuck)
    p.front_foot.y -= tuck * 13
    p.back_foot.y -= tuck * 13
   "super_windup":

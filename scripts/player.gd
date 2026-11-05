@@ -3,6 +3,13 @@ var fighter = preload("res://scripts/fighter_state.gd").new()
 const Battle = preload("res://data/battle.gd")
 const Art = preload("res://scripts/visuals/art_direction.gd")
 const Action = preload("res://scripts/visuals/action_pose.gd")
+const Limb = preload("res://scripts/visuals/limb_pose.gd")
+var motion_track = preload("res://scripts/visuals/motion_track.gd").new()
+var pose_transition = preload("res://scripts/visuals/pose_transition.gd").new()
+var visual_action_time := 0.0
+var visual_speed := 0.0
+var visual_idle_clock := 0.0
+var visual_roll := 0.0
 const Pose = preload("res://scripts/visuals/player_pose.gd")
 var visual_clock := 0.0
 var cloth_motion = preload("res://scripts/visuals/cloth_motion.gd").new()
@@ -15,6 +22,7 @@ var visual_landing := 0.0
 var visual_grounded := false
 var visual_fall_speed := 0.0
 var visual_pose: Dictionary = {}
+var visual_hit_direction := 1.0
 var visual_hurt := 0.0
 var visual_step := -1
 var visual_initialized := false
@@ -136,7 +144,9 @@ func _process(delta: float) -> void:
  visual_turn_age = minf(0.12,visual_turn_age+delta)
  var turning := visual_turn_age/0.12
  if turning >= 0.5: visual_facing = visual_target_facing
- visual_turn = 1-sin(turning*PI)*0.18
+ visual_turn = 1-sin(turning*PI)*0.72
+ visual_action_time = motion_track.advance(fighter.mode,fighter.elapsed,delta,fighter.duration)
+ visual_roll = lerpf(visual_roll,1.0 if fighter.mode == "roll" else 0.0,1-exp(-38*delta))
  visual_medicine = lerpf(visual_medicine,1.0 if medicine_progress > 0 and not dead else 0.0,1-exp(-20*delta))
  work_remaining = maxf(0,work_remaining-delta)
  visual_hurt = maxf(0,visual_hurt-delta)
@@ -145,6 +155,7 @@ func _process(delta: float) -> void:
   elif not dead and visual_was_dead: emit_visual("respawn",Vector2(0,-5))
   elif health < visual_health:
    visual_hurt = 0.16
+   visual_hit_direction = signf(velocity.x) if absf(velocity.x) > 1 else -float(facing)
    emit_visual("hurt",Vector2(0,-5),Vector2(-facing,-1))
  visual_initialized = true
  visual_was_dead = dead
@@ -160,17 +171,14 @@ func _process(delta: float) -> void:
  visual_fall_speed = velocity.y
  visual_grounded = grounded
  if not dead:
-  visual_clock += delta * (2.0 + absf(velocity.x) * 0.12)
+  visual_idle_clock += delta
+  visual_speed = lerpf(visual_speed,velocity.x,1-exp(-24*delta))
+  visual_clock += delta * absf(visual_speed) * 0.16
   var step_index := floori(visual_clock/PI)
   if grounded and absf(velocity.x) > 30 and step_index != visual_step: emit_visual("step",Vector2(0,10),Vector2(-signf(velocity.x),-0.3))
   visual_step = step_index
-  var target_pose := Pose.sample(visual_clock, velocity.x, velocity.y, grounded, visual_landing)
-  if visual_pose.is_empty(): visual_pose = target_pose
-  else:
-   var blend := 1.0 - exp(-22.0 * delta)
-   for key in target_pose:
-    if target_pose[key] is Vector2: visual_pose[key] = Vector2(visual_pose[key]).lerp(target_pose[key], blend)
-    else: visual_pose[key] = lerpf(float(visual_pose[key]), float(target_pose[key]), blend)
+  var target_pose := Pose.sample(visual_clock,visual_speed,velocity.y,grounded,visual_landing,visual_idle_clock)
+  visual_pose = pose_transition.sample("ground" if grounded else "air",target_pose,delta)
   var cloth_target: float = float(target_pose.cloth)-velocity.x*visual_facing/115.0*1.5
   visual_pose.cloth = cloth_motion.advance(cloth_target,delta)
   queue_redraw()
@@ -194,7 +202,7 @@ func _draw() -> void:
   action_progress = 1.0-swing_remaining/0.24 if fighting else 1.0-work_remaining/0.30
   if fighter.mode == "attack":
    fighting = true
-   var t: float = fighter.elapsed
+   var t: float = visual_action_time
    if t < Battle.BLADE.windup: action_progress = t/Battle.BLADE.windup*0.40
    elif t < Battle.BLADE.windup+Battle.BLADE.active: action_progress = 0.40+(t-Battle.BLADE.windup)/Battle.BLADE.active*0.25
    else: action_progress = 0.65+(t-Battle.BLADE.windup-Battle.BLADE.active)/Battle.BLADE.recovery*0.35
@@ -202,36 +210,46 @@ func _draw() -> void:
   var direction: Vector2 = (swing_direction if fighting else work_direction)*Vector2(visual_facing,1)
   action = Action.sample(action_kind,action_progress,direction,pose.front_hand)
 
- var scale_value: Vector2 = pose.scale
- if fighter.mode == "roll":
+ if visual_roll > 0.001:
   pose = pose.duplicate()
-  pose.scale = Vector2(1.08,0.72)
-  pose.offset = Vector2(0,-1)
-  pose.head = Vector2(pose.head)+Vector2(1,4)
-  pose.front_foot = Vector2(5,7)
-  pose.back_foot = Vector2(-4,7)
-  pose.front_hand = Vector2(6,-5)
+  pose.scale = Vector2(pose.scale).lerp(Vector2(1.08,0.72),visual_roll)
+  pose.offset = Vector2(pose.offset).lerp(Vector2(0,-1),visual_roll)
+  pose.head = Vector2(pose.head)+Vector2(1,4)*visual_roll
+  pose.front_foot = Vector2(pose.front_foot).lerp(Vector2(5,7),visual_roll)
+  pose.back_foot = Vector2(pose.back_foot).lerp(Vector2(-4,7),visual_roll)
+  pose.front_hand = Vector2(pose.front_hand).lerp(Vector2(6,-5),visual_roll)
+  pose.back_hand = Vector2(pose.back_hand).lerp(Vector2(-5,-5),visual_roll)
  var guard_weight := 0.0
  if fighter.mode in ["parry","parry_success"]:
-  guard_weight = 1-smoothstep(0,fighter.duration,fighter.elapsed) if fighter.mode == "parry_success" else smoothstep(0,Battle.PARRY.window_from,fighter.elapsed)*(1-smoothstep(Battle.PARRY.window_to,fighter.duration,fighter.elapsed))
+  guard_weight = 1-smoothstep(0,fighter.duration,visual_action_time) if fighter.mode == "parry_success" else smoothstep(0,Battle.PARRY.window_from,visual_action_time)*(1-smoothstep(Battle.PARRY.window_to,fighter.duration,visual_action_time))
   pose = pose.duplicate()
   pose.front_hand = Vector2(pose.front_hand).lerp(Vector2(10,-9),guard_weight)
   pose.back_hand = Vector2(pose.back_hand).lerp(Vector2(-4,-7),guard_weight)
  var lean: float = float(pose.lean)+float(action.get("lean",0))*visual_facing
  var offset: Vector2 = Vector2(pose.offset)+Vector2(action.get("offset",Vector2.ZERO))*Vector2(visual_facing,1)
- var transform := Transform2D(lean,scale_value*Vector2(visual_facing*visual_turn,1),0,Vector2.ZERO)
+ var recoil := sin(clampf(1-visual_hurt/0.16,0,1)*PI)
+ offset += Vector2(visual_hit_direction*recoil*1.5,-recoil*0.5)
+ lean += visual_hit_direction*recoil*0.06
+ var transform := Transform2D(lean,Vector2(pose.scale)*Vector2(visual_facing*visual_turn,1),0,Vector2.ZERO)
  transform.origin = offset+Vector2(0,10)-transform*Vector2(0,10)
  if fighter.mode == "roll":
   var pivot := Vector2(0,-3)
-  var turn := Transform2D(fighter.elapsed/Battle.ROLL.duration*TAU*signf(fighter.direction.x),Vector2.ZERO)
+  var turn := Transform2D(Pose.smoother(visual_action_time/Battle.ROLL.duration)*TAU*signf(fighter.direction.x),Vector2.ZERO)
   turn.origin = pivot-turn*pivot
   transform = transform*turn
+ if visual_roll > 0.001:
+  # Keep the rotating silhouette against its support line, rather than orbiting
+  # in the air. The collision shape and real player position stay untouched.
+  var bottom := -INF
+  var contact_points := [Vector2(-5,6),Vector2(5,6),Vector2(pose.front_foot)+Vector2(3,1),Vector2(pose.back_foot)+Vector2(-2,1),Vector2(pose.head)+Vector2(-4,-19),Vector2(pose.head)+Vector2(4,-19),Vector2(pose.head)+Vector2(-4,-8),Vector2(pose.head)+Vector2(4,-8)]
+  for point in contact_points: bottom = maxf(bottom,(transform*Vector2(point)).y)
+  transform.origin.y += (10-bottom)*visual_roll
  draw_set_transform_matrix(transform)
  if not unclothed:
   # Two scarf tails move at different phases; only the artwork moves.
   var tail: float = pose.cloth
   draw_colored_polygon(PackedVector2Array([Vector2(-3,-10),Vector2(-8,-7),Vector2(-10+tail,3),Vector2(-6+tail,1),Vector2(-4,5),Vector2(-2,-3)]),Art.INK)
-  draw_line(Vector2(-5,-8),Vector2(-7+tail,1).round(),Art.COPPER,2)
+  draw_line(Vector2(-5,-8),Vector2(-7+tail,1),Art.COPPER,2)
  _draw_limb(Vector2(-4,-5),Vector2(-6,-2),pose.back_hand,skin.darkened(0.2),3)
  _draw_leg(Vector2(-2,3),pose.back_foot,skin.darkened(0.2) if unclothed else trousers.darkened(0.15),Art.INK)
  _draw_leg(Vector2(2,3),pose.front_foot,skin if unclothed else trousers,Art.INK)
@@ -247,7 +265,7 @@ func _draw() -> void:
   draw_rect(Rect2(0,0,2,2),Art.EMBER)
   draw_rect(Rect2(3,-7,3,4),Art.COPPER)
   draw_rect(Rect2(3,-7,3,1),Art.EMBER)
- var head: Vector2 = Vector2(pose.head).round()
+ var head: Vector2 = pose.head
  draw_set_transform_matrix(transform.translated_local(head))
  draw_rect(Rect2(-4,-17,8,9),Art.INK)
  draw_rect(Rect2(-3,-16,7,7),skin)
@@ -261,14 +279,14 @@ func _draw() -> void:
   draw_rect(Rect2(-4,-10,8,2),Art.COPPER)
  else:
   draw_rect(Rect2(-4,-18,7,3),Art.COAL)
- var blink := fposmod(visual_clock*0.27,6.0) > 5.85
+ var blink := fposmod(visual_idle_clock,6.0) > 5.85
  draw_rect(Rect2(2,-15,2,1 if blink else 2),Art.INK)
  draw_set_transform_matrix(transform)
  var hand: Vector2 = pose.front_hand
  if visual_medicine > 0.02 and action.is_empty():
   hand = hand.lerp(Vector2(5,-13),visual_medicine)
   _draw_limb(Vector2(4,-6),Vector2(8,-5),hand,skin,3)
-  draw_texture_rect(preload("res://data/items.gd").icon("spark_balm"),Rect2(hand.round()-Vector2(4,4),Vector2(8,8)),false,Color(1,1,1,visual_medicine))
+  draw_texture_rect(preload("res://data/items.gd").icon("spark_balm"),Rect2(hand-Vector2(4,4),Vector2(8,8)),false,Color(1,1,1,visual_medicine))
  elif not action.is_empty():
   var progress := action_progress
   var kind := action_kind
@@ -277,37 +295,37 @@ func _draw() -> void:
   hand = action.hand
   _draw_limb(Vector2(4,-6),action.elbow,hand,skin,3)
   if kind == "build":
-   draw_rect(Rect2(hand.round(),Vector2(2,2)),Color(Art.EMBER, presence))
+   draw_rect(Rect2(hand,Vector2(2,2)),Color(Art.EMBER, presence))
   else:
    var along := Vector2.from_angle(angle)
    var normal := along.orthogonal()
    var tip := hand+along*(20 if kind == "blade" else 15)
    if kind == "punch" and presence > 0.1:
-    draw_rect(Rect2(hand.round()-Vector2(2,2),Vector2(5,4)),skin.lightened(0.1))
+    draw_rect(Rect2(hand-Vector2(2,2),Vector2(5,4)),skin.lightened(0.1))
    elif kind != "punch" and presence > 0.03:
-    if progress > 0.22 and progress < 0.65:
-     for i in range(3):
-      var trail_angle := angle-0.18*i
-      draw_line((Vector2(0,-5)+Vector2.from_angle(trail_angle)*16).round(),(Vector2(0,-5)+Vector2.from_angle(trail_angle)*24).round(),Color(0.94,0.77,0.5,(1-i*0.25)*0.45),2)
+    if progress > 0.4 and progress < 0.65 and (fighter.mode != "attack" or fighter.phase() == "attack_active"):
+     draw_arc(Vector2(0,-5),24,angle-0.5,angle,9,Color(0.94,0.77,0.5,0.32),2)
     var tool_alpha := smoothstep(0,0.25,presence)
-    draw_line(hand.round(),tip.round(),Color(Art.INK,tool_alpha),4)
-    draw_line(hand.round(),tip.round(),Color(Art.COPPER if kind in ["pick","axe"] else Art.IVORY,tool_alpha),2)
+    draw_line(hand,tip,Color(Art.INK,tool_alpha),4)
+    draw_line(hand,tip,Color(Art.COPPER if kind in ["pick","axe"] else Art.IVORY,tool_alpha),2)
     if kind == "axe":
-     draw_colored_polygon(PackedVector2Array([(tip-along*5).round(),(tip+along*3).round(),(tip+along*3+normal*8).round(),(tip-along*5+normal*6).round()]),Color(Art.MIST,tool_alpha))
-     draw_line((tip+normal*7).round(),(tip+along*3+normal*8).round(),Color(Art.IVORY,tool_alpha),1)
+     draw_colored_polygon(PackedVector2Array([(tip-along*5),(tip+along*3),(tip+along*3+normal*8),(tip-along*5+normal*6)]),Color(Art.MIST,tool_alpha))
+     draw_line((tip+normal*7),(tip+along*3+normal*8),Color(Art.IVORY,tool_alpha),1)
     elif kind == "pick":
-     draw_line((tip-normal*7-along*2).round(),(tip+normal*7).round(),Color(Art.MIST,tool_alpha),3)
-     draw_line((tip+normal*7).round(),(tip+normal*9-along*3).round(),Color(Art.IVORY,tool_alpha),1)
+     draw_line((tip-normal*7-along*2),(tip+normal*7),Color(Art.MIST,tool_alpha),3)
+     draw_line((tip+normal*7),(tip+normal*9-along*3),Color(Art.IVORY,tool_alpha),1)
     else:
      # A chipped slate blade with one porcelain edge, instead of a straight bar.
-     draw_colored_polygon(PackedVector2Array([(hand+along*3-normal).round(),(hand+along*7-normal*2).round(),(hand+along*10-normal).round(),(tip-along*2-normal*2).round(),(tip+along).round(),(tip-along*3+normal*2).round(),(hand+along*3+normal).round()]),Color(Art.MIST,tool_alpha))
-     draw_line((hand+along*4-normal).round(),(tip+along).round(),Color(Art.IVORY,tool_alpha),1)
-     draw_line((hand-normal*3).round(),(hand+normal*3).round(),Color(Art.COPPER,tool_alpha),2)
+     draw_colored_polygon(PackedVector2Array([(hand+along*3-normal),(hand+along*7-normal*2),(hand+along*10-normal),(tip-along*2-normal*2),(tip+along),(tip-along*3+normal*2),(hand+along*3+normal)]),Color(Art.MIST,tool_alpha))
+     draw_line((hand+along*4-normal),(tip+along),Color(Art.IVORY,tool_alpha),1)
+     draw_line((hand-normal*3),(hand+normal*3),Color(Art.COPPER,tool_alpha),2)
  else:
   _draw_limb(Vector2(4,-5),Vector2(6,-2).lerp(Vector2(8,-9),guard_weight),hand,skin,3)
  draw_set_transform_matrix(Transform2D.IDENTITY)
  if fighter.roll_invulnerable():
-  for side in [-1,1]: draw_line(Vector2(side*12,-8),Vector2(side*15,-3),Color(0.53,0.67,0.66,0.65),2)
+  var trail_direction := signf(fighter.direction.x)
+  draw_line(Vector2(-trail_direction*11,4),Vector2(-trail_direction*18,4),Color(0.70,0.81,0.77,0.45),1)
+  draw_line(Vector2(-trail_direction*10,7),Vector2(-trail_direction*15,7),Color(0.53,0.67,0.66,0.3),1)
  if fighter.mode in ["parry","parry_success"]:
   var color := Art.IVORY if fighter.parry_open() or fighter.mode == "parry_success" else Art.SLATE
   color.a = guard_weight
@@ -326,18 +344,21 @@ func _draw() -> void:
   draw_string_outline(ThemeDB.fallback_font,text_at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,1,Color(0.1,0.16,0.18,color.a))
   draw_string(ThemeDB.fallback_font,text_at,text,HORIZONTAL_ALIGNMENT_LEFT,-1,9,color)
  if hurt_immunity > 0:
-  var alpha := 0.15+sin(visual_clock*3)*0.08
+  var alpha := 0.15+sin(visual_idle_clock*6)*0.08
   for side in [-1,1]:
    draw_line(Vector2(side*11,-16),Vector2(side*14,-5),Color(0.88,0.87,0.76,alpha),1)
 
-func _draw_limb(start: Vector2, joint: Vector2, end: Vector2, color: Color, width: float) -> void:
+func _draw_limb(start: Vector2, joint: Vector2, end: Vector2, color: Color, width: float, sleeved: bool = true) -> void:
  var ink := Color("18252e")
- draw_line(start.round(),joint.round(),ink,width+2)
- draw_line(joint.round(),end.round(),ink,width+2)
- draw_line(start.round(),joint.round(),color,width)
- draw_line(joint.round(),end.round(),color,width)
+ var axis := end-start
+ var bend := 1.0 if (joint-start).dot(Vector2(axis.y,-axis.x)) >= 0 else -1.0
+ joint = Limb.joint(start,end,4.5 if sleeved else 4.0,5.0 if sleeved else 4.0,bend)
+ draw_line(start,joint,ink,width+2)
+ draw_line(joint,end,ink,width+2)
+ draw_line(start,joint,Art.JADE.darkened(0.22) if sleeved and not unclothed else color,width)
+ draw_line(joint,end,color,width)
 
 func _draw_leg(hip: Vector2, foot: Vector2, color: Color, boot: Color) -> void:
- var knee := hip.lerp(foot,0.5)+Vector2(2,-1)
- _draw_limb(hip,knee,foot-Vector2(0,1),color,3)
- draw_rect(Rect2(foot.round()+Vector2(-2,-1),Vector2(5,2)),boot)
+ var knee := Limb.joint(hip,foot-Vector2(0,1),4,4)
+ _draw_limb(hip,knee,foot-Vector2(0,1),color,3,false)
+ draw_rect(Rect2(foot+Vector2(-2,-1),Vector2(5,2)),boot)

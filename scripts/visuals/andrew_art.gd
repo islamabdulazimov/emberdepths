@@ -58,6 +58,6 @@ static func draw_body(canvas: Node2D, pose: Dictionary, phase: String, hit: floa
   canvas.draw_rect(Rect2(shoulder-Vector2(5,4),Vector2(10,1)),Art.EMBER)
  canvas._draw_arm(Vector2(17,-43),pose.front_elbow,pose.front_hand,stone)
  for hand in [pose.back_hand,pose.front_hand]:
-  canvas.draw_rect(Rect2(Vector2(hand).round()-Vector2(5,4),Vector2(10,8)),Art.INK)
-  canvas.draw_rect(Rect2(Vector2(hand).round()-Vector2(4,3),Vector2(8,6)),Art.COPPER)
-  canvas.draw_rect(Rect2(Vector2(hand).round()-Vector2(3,3),Vector2(6,2)),glow)
+  canvas.draw_rect(Rect2(Vector2(hand)-Vector2(5,4),Vector2(10,8)),Art.INK)
+  canvas.draw_rect(Rect2(Vector2(hand)-Vector2(4,3),Vector2(8,6)),Art.COPPER)
+  canvas.draw_rect(Rect2(Vector2(hand)-Vector2(3,3),Vector2(6,2)),glow)

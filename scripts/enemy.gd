@@ -10,6 +10,13 @@ var hurt_flash := 0.0
 var hit_stun := 0.0
 var clock := 0.0
 var night := false
+var visual_facing := 1
+var visual_target_facing := 1
+var visual_turn_age := 0.1
+var visual_width := 1.0
+var visual_anticipation := 0.0
+var visual_movement := 0.0
+var motion_track = preload("res://scripts/visuals/motion_track.gd").new()
 var visual_health := -1
 
 func _ready() -> void:
@@ -29,6 +36,21 @@ func _process(delta: float) -> void:
   if is_instance_valid(main.get("effects")): main.effects.burst("hurt",position+Vector2(0,-6))
  visual_health = health
  if not get_parent().authoritative(): attack_elapsed += delta
+ var duration: float = Battle.ASHLING.windup if attack_state == "windup" else (Battle.ASHLING.active if attack_state == "active" else Battle.ASHLING.recovery)
+ var t: float = motion_track.advance(attack_state,attack_elapsed,delta,duration)/duration
+ var target := 0.0
+ if attack_state == "windup": target = smoothstep(0,1,t)
+ elif attack_state == "active": target = lerpf(1,-0.45,smoothstep(0,0.65,t))
+ elif attack_state == "recovery": target = -0.45*(1-smoothstep(0,0.65,t))
+ visual_anticipation = lerpf(visual_anticipation,target,1-exp(-36*delta))
+ visual_movement = lerpf(visual_movement,velocity.x,1-exp(-22*delta))
+ var target_face := attack_facing if attack_state != "chase" else (-1 if velocity.x < -1 else (1 if velocity.x > 1 else visual_target_facing))
+ if target_face != visual_target_facing:
+  visual_target_facing = target_face
+  visual_turn_age = 0
+ visual_turn_age = minf(0.1,visual_turn_age+delta)
+ if visual_turn_age >= 0.05: visual_facing = visual_target_facing
+ visual_width = 1-sin(visual_turn_age/0.1*PI)*0.65
  clock += delta
  hurt_flash = maxf(0.0, hurt_flash - delta)
  queue_redraw()
@@ -37,8 +59,7 @@ func _draw() -> void:
  var art = preload("res://scripts/visuals/enemy_art.gd")
  if kind == "spirit": art.draw_spirit(self,clock,velocity,hurt_flash)
  else:
-  var anticipation := minf(1,attack_elapsed/Battle.ASHLING.windup) if attack_state == "windup" else (-0.3 if attack_state == "active" else 0.0)
-  art.draw_ashling(self,clock,velocity,hurt_flash,night,attack_facing if attack_state != "chase" else 0,anticipation)
+  art.draw_ashling(self,clock,Vector2(visual_movement,velocity.y),hurt_flash,night,visual_facing,visual_anticipation,visual_width)
   if attack_state in ["windup","active"]:
    var color := Color("bd8058") if attack_state == "windup" else Color("e1dec2")
    draw_line(Vector2(attack_facing*9,-7),Vector2(attack_facing*Battle.ASHLING.reach,-7),Color(color,0.35),1)
