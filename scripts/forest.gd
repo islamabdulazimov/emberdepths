@@ -3,6 +3,9 @@ const Trees = preload("res://data/trees.gd")
 const Art = preload("res://scripts/visuals/tree_art.gd")
 var world: Node2D
 var rustle: AudioStreamPlayer
+var redraw_clock := 0.0
+var sound_clock := 0.0
+var listener_gain := 0.0
 var sound_gain := 0.0
 var falling: Array = []
 
@@ -30,13 +33,19 @@ func _process(delta: float) -> void:
   falling[i].age += delta
   if falling[i].age >= 1.0: falling.remove_at(i)
  var main := world.get_parent()
- var target := 0.0
+ sound_clock += delta
+ var target := listener_gain
  var listener = main.get("player")
- if is_instance_valid(listener) and not listener.dead:
-  target = Trees.sound_level(world.trees, listener.position)
+ if sound_clock >= 0.1:
+  sound_clock = fmod(sound_clock,0.1)
+  listener_gain = Trees.sound_level(world.trees,listener.position) if is_instance_valid(listener) and not listener.dead else 0.0
+  target = listener_gain
  sound_gain = lerpf(sound_gain, target, 1.0 - exp(-5.0 * delta))
  rustle.volume_db = maxf(-80, Trees.MAX_VOLUME_DB + linear_to_db(maxf(0.0001, sound_gain)))
- queue_redraw()
+ redraw_clock += delta
+ if redraw_clock >= 1.0/60 or not falling.is_empty():
+  redraw_clock = fmod(redraw_clock,1.0/60)
+  queue_redraw()
 
 func _draw() -> void:
  var main := world.get_parent()

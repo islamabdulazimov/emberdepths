@@ -163,6 +163,7 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  if changed_life:
   body.position = data.position
   body.velocity = data.velocity
+  body.reset_physics_interpolation()
  if body.dead and main.player == body and is_instance_valid(main.inventory_ui) and main.inventory_ui.opened:
   main.inventory_ui.toggle()
  body.queue_redraw()
@@ -224,6 +225,7 @@ func respawn(body: CharacterBody2D) -> void:
  body.since_hurt = 0.0
  body.regen_fraction = 0.0
  body.position = main.world.safe_spawn_position()
+ body.reset_physics_interpolation()
  body.velocity = Vector2.ZERO
  body.move_command = 0.0
  body.jump_command = false

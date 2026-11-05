@@ -1,27 +1,40 @@
 extends Control
 const Daylight = preload("res://data/daylight.gd")
+var redraw_clock := 0.0
+var sky_gradient := Gradient.new()
+var sky_texture := GradientTexture2D.new()
 var main: Node2D
 var underground := 0.0
 var stars: Array[Vector3] = []
 
 func _ready() -> void:
+ sky_texture.gradient = sky_gradient
+ sky_texture.width = 1
+ sky_texture.height = 128
+ sky_texture.fill_from = Vector2.ZERO
+ sky_texture.fill_to = Vector2(0,1)
  mouse_filter = Control.MOUSE_FILTER_IGNORE
  var rng := RandomNumberGenerator.new()
  rng.seed = 79463
  for i in range(72):
   stars.append(Vector3(rng.randf_range(0.02, 0.98), rng.randf_range(0.04, 0.73), rng.randf_range(0.45, 1.0)))
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+ redraw_clock += delta
+ var resized := size != get_viewport_rect().size
+ if redraw_clock < 1.0/30 and not resized: return
+ redraw_clock = fmod(redraw_clock,1.0/30)
  size = get_viewport_rect().size
+ if is_instance_valid(main.combat):
+  var state := Daylight.sample(main.combat.world_time)
+  sky_gradient.offsets = PackedFloat32Array([0,0.55,1])
+  sky_gradient.colors = PackedColorArray([state.top.lerp(Color("172331"),underground),state.top.lerp(state.horizon,0.46).lerp(Color("172331"),underground),state.horizon.lerp(Color("172331"),underground)])
  queue_redraw()
 
 func _draw() -> void:
  if size.x < 32 or size.y < 32 or not is_instance_valid(main.combat): return
  var state := Daylight.sample(main.combat.world_time)
- var cave := Color("172331")
- for y in range(0, ceili(size.y), 4):
-  var color: Color = state.top.lerp(state.horizon, pow(clampf(float(y) / size.y, 0, 1), 1.3)).lerp(cave, underground)
-  draw_rect(Rect2(0, y, size.x, 4), color)
+ draw_texture_rect(sky_texture,Rect2(Vector2.ZERO,size),false)
  var visibility := 1.0 - underground
  for star in stars:
   var sparkle := 0.8 + sin(main.combat.world_time * 1.7 + star.x * 90) * 0.2
@@ -67,6 +80,19 @@ func _draw() -> void:
   var color: Color = state.horizon.lerp(Color("293b46"),0.3+layer*0.15)
   color.a = visibility*0.7
   draw_colored_polygon(ridge,color)
+
+ # Weathered spans on the far horizon. Original, purely background architecture.
+ var ruin: Color = state.horizon.lerp(Color("293b46"),0.43)
+ ruin.a = visibility*0.55
+ for i in range(4):
+  var x := floorf(size.x*(0.12+i*0.24))
+  var y := floorf(size.y*(0.62+float(i%2)*0.055))
+  draw_rect(Rect2(x,y,5,38),ruin)
+  draw_rect(Rect2(x+29,y+4,7,34),ruin)
+  draw_rect(Rect2(x-2,y-5,40,5),ruin)
+  draw_rect(Rect2(x+5,y,5,5),ruin)
+  draw_rect(Rect2(x+24,y+1,5,5),ruin)
+  draw_rect(Rect2(x-1,y-11,8,6),ruin)
 
 func _disc(at: Vector2, radius: int, color: Color) -> void:
  # Pixel steps rather than antialiased vector circles.

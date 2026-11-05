@@ -1,4 +1,5 @@
 extends RefCounted
+const CANOPY = preload("res://assets/canopy.png")
 const Trees = preload("res://data/trees.gd")
 
 static func draw_tree(canvas: Node2D, record: Dictionary, time: float) -> void:
@@ -40,17 +41,9 @@ static func draw_tree(canvas: Node2D, record: Dictionary, time: float) -> void:
   canvas.draw_line(at.round(),(at+Vector2(2,1 if i%2 else -1)).round(),color,1)
 
 static func _crown(canvas: Node2D, at: Vector2, half: Vector2, colors: Array, seed_value: int) -> void:
- at = at.round()
- var w := half.x
- var h := half.y
- var outline := PackedVector2Array([Vector2(-w,-h*0.3),Vector2(-w+5,-h*0.3),Vector2(-w+5,-h*0.7),Vector2(-w+12,-h*0.7),Vector2(-w+12,-h),Vector2(w-12,-h),Vector2(w-12,-h*0.8),Vector2(w-5,-h*0.8),Vector2(w-5,-h*0.4),Vector2(w,-h*0.4),Vector2(w,h*0.4),Vector2(w-6,h*0.4),Vector2(w-6,h*0.7),Vector2(w-14,h*0.7),Vector2(w-14,h),Vector2(-w+10,h),Vector2(-w+10,h*0.7),Vector2(-w,h*0.7)])
- var shifted := PackedVector2Array()
- for point in outline: shifted.append(at + point.round())
- canvas.draw_colored_polygon(shifted,colors[0])
- # Small connected leaf planes; deterministic texture, never random per frame.
- for i in range(35):
-  var x := float(posmod(seed_value * 13 + i * 113, int(w * 1.6))) - w * 0.8
-  var y := float(posmod(seed_value * 7 + i * 47, int(h * 1.4))) - h * 0.85
-  if Vector2(x / w, y / h).length_squared() > 0.85: continue
-  var color: Color = colors[2] if i % 4 == 0 else colors[1]
-  canvas.draw_rect(Rect2((at + Vector2(x,y)).snapped(Vector2(2,2)),Vector2(6 + i % 3 * 2,3 + i % 2)),color)
+ # Baked leaf planes become one textured quad, rather than 35 new shapes.
+ var row := 0
+ if colors[0] == Color("3c5b51"): row = 1
+ elif colors[0] == Color("304c4b"): row = 2
+ var source := Rect2(posmod(seed_value,4)*64,row*52,64,52)
+ canvas.draw_texture_rect_region(CANOPY,Rect2(at.round()-half,half*2),source)

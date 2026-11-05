@@ -60,6 +60,7 @@ func reset_arena() -> void:
  player.fighter.reset()
  combat.respawn(player)
  player.position = Vector2(90*16+8,floor_y*16-10)
+ player.reset_physics_interpolation()
  player.unclothed = false
  player.hurt_immunity = 0 # A fresh practice trial should demonstrate the first real hit/parry.
  player.medicine_cooldown = 0

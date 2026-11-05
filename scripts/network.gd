@@ -84,6 +84,8 @@ func join_game(address: String, port: int = PORT) -> Error:
  connected = false
  connection_clock = 0.0
  main.player.set_physics_process(false)
+ main.player.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+ main.player.get_node("Camera2D").process_callback = Camera2D.CAMERA2D_PROCESS_IDLE
  status = "Подключение…"
  return OK
 

@@ -16,10 +16,23 @@ var close_dialog: ConfirmationDialog
 var closing := false
 var inventory_ui: CanvasLayer
 var ambient: CanvasModulate
+var presentation_clock := 0.0
+var fps_clock := 0.0
+var fps_label: Label
 var sky: Control
 @onready var world = $World
 
 func _ready() -> void:
+ fps_label = Label.new()
+ fps_label.position = Vector2(708,100)
+ fps_label.size = Vector2(224,20)
+ fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+ fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ fps_label.add_theme_font_size_override("font_size",12)
+ fps_label.add_theme_color_override("font_color",Color("b6c9bd"))
+ fps_label.add_theme_color_override("font_outline_color",Color("18252e"))
+ fps_label.add_theme_constant_override("outline_size",2)
+ $HUD.add_child(fps_label)
  $HUD/Panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  $HUD/Panel/Label.add_theme_font_size_override("font_size",12)
  ambient = CanvasModulate.new()
@@ -113,6 +126,10 @@ func add_player(id: int, position_value: Vector2) -> void:
  body.position = position_value
  body.get_node("Camera2D").enabled = false
  body.set_physics_process(not network.active or multiplayer.is_server())
+ # Clients already interpolate authoritative snapshots in Network._process.
+ body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON if body.is_physics_processing() else Node.PHYSICS_INTERPOLATION_MODE_OFF
+ body.get_node("Camera2D").process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS if body.is_physics_processing() else Camera2D.CAMERA2D_PROCESS_IDLE
+ body.reset_physics_interpolation()
  # Visually distinguish peers without changing their appearance or hitboxes.
  var palette := [Color.WHITE, Color("b9d9ff"), Color("f8c7a9"), Color("cebddf")]
  body.modulate = palette[($Players.get_child_count() - 1) % 4]
@@ -126,7 +143,10 @@ func select_local_player(id: int) -> void:
  camera.limit_right = world.world_width * 16
  camera.limit_top = 0
  camera.limit_bottom = world.world_depth * 16
+ player.reset_physics_interpolation()
+ camera.align()
  camera.reset_smoothing()
+ camera.reset_physics_interpolation()
  if is_instance_valid(interaction):
   interaction.player = player
 
@@ -202,7 +222,14 @@ func _bind_key(action: String, code: Key) -> void:
   InputMap.action_add_event(action, event)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+ fps_clock += delta
+ if fps_clock >= 0.5:
+  fps_clock = fmod(fps_clock,0.5)
+  fps_label.text = "%d FPS · цель 240" % Engine.get_frames_per_second()
+ presentation_clock += delta
+ if delta > 0 and presentation_clock < 1.0/30: return
+ presentation_clock = fmod(presentation_clock,1.0/30)
  if not is_instance_valid(player) or world.heights.is_empty():
   return
  var column := clampi(floori(player.position.x / 16.0), 0, world.world_width - 1)

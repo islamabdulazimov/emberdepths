@@ -283,7 +283,10 @@ func _restore_life(peer_id: int, life: Dictionary) -> void:
   elif body.dead:
    restore_notice += " · сохранена смерть, ожидается возрождение"
   var camera: Camera2D = body.get_node("Camera2D")
+  body.reset_physics_interpolation()
+  camera.align()
   camera.reset_smoothing()
+  camera.reset_physics_interpolation()
   camera.force_update_scroll()
 
 func restore(state: Dictionary) -> String:

@@ -1,13 +1,18 @@
 config_version=5
 [application]
 config/name="Emberdepths — prototype"
+run/max_fps=240
 run/main_scene="res://scenes/main.tscn"
 [display]
+window/vsync/vsync_mode=0
 window/size/viewport_width=960
 window/size/viewport_height=540
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+[physics]
+common/physics_ticks_per_second=60
+common/physics_interpolation=true
 [rendering]
 renderer/rendering_method="gl_compatibility"
 textures/default_filters/use_nearest_mipmap_filter=false

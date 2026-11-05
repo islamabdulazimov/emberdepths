@@ -21,11 +21,16 @@ var storage_revision := 0
 var source_box := false
 var notice_left := 0.0
 var visual_alpha := 0.0
+var slot_styles: Array[StyleBoxFlat] = []
 var art_theme: Theme
 
 func _ready() -> void:
  main = get_parent()
  art_theme = Art.theme()
+ for selected in [false,true]:
+  var style := Art.panel(Art.SHADOW.lightened(0.08) if selected else Art.INK,Art.EMBER if selected else Art.SLATE)
+  style.set_border_width_all(2 if selected else 1)
+  slot_styles.append(style)
  layer = 3
  var quick := HBoxContainer.new()
  quick.position = Vector2(14, 128)
@@ -236,11 +241,7 @@ func _paint(button: Button, slot: Dictionary, number: String, selected: bool) ->
  button.icon = null
  if slot.count > 0:
   button.icon = Items.icon(slot.item)
- var style := StyleBoxFlat.new()
- style.bg_color = Art.INK if not selected else Art.SHADOW.lightened(0.08)
- style.border_color = Art.EMBER if selected else Art.SLATE
- style.set_border_width_all(2 if selected else 1)
- button.add_theme_stylebox_override("normal", style)
+ button.add_theme_stylebox_override("normal",slot_styles[1 if selected else 0])
 
 
 func _craft(recipe_id: String) -> void:

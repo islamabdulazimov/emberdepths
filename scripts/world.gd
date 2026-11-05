@@ -103,6 +103,7 @@ func generate() -> void:
   detail.name = "SurfaceDetails"
   detail.set_script(preload("res://scripts/visuals/world_detail.gd"))
   add_child(detail)
+ if is_instance_valid(detail): detail.invalidate()
 
 func spawn_position() -> Vector2:
  return Vector2((world_width / 2) * 16 + 8, 22 * 16 - 24)
@@ -166,6 +167,7 @@ func apply_edit(cell: Vector2i, block_id: int) -> void:
   solid.erase_cell(cell)
  else:
   solid.set_cell(cell, int(Blocks.DEFINITIONS[block_id].get("source", 0)), Blocks.DEFINITIONS[block_id].atlas)
+ if is_instance_valid(detail): detail.invalidate()
  changes[cell] = block_id
  if block_id == -1:
   for tree in trees:

@@ -118,7 +118,8 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s\nA/D · Space · ЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо · Esc — инвентарь · Shift — перекат · F — парирование\n%s | %s\nSeed %d · Вы (%d, %d)%s" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"), status, world.world_seed, location.x, location.y, grave_text]
+ label.text = "%s%s · %s\n%s%s\nSeed %d · Вы (%d, %d) · Esc — инвентарь · Shift — перекат · F — парирование" % [health_text + " · " if health_text != "" else "", combat.time_label(), definition.get("name", "Пустой слот"),status,grave_text,world.world_seed,location.x,location.y]
+ label.tooltip_text = "A/D — движение · Space — прыжок\nЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — панель · Esc — инвентарь · Shift — перекат · F — парирование"
  queue_redraw()
 
 func _draw() -> void:
