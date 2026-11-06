@@ -1,6 +1,7 @@
 extends SceneTree
 class PreviewEncounter extends Node2D:
  func authoritative() -> bool: return true
+var mirror := false
 var output_dir := "user://motion-review"
 var actors: Array = []
 var labels: Array = []
@@ -9,6 +10,7 @@ var fixture: Node2D
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
  for arg in OS.get_cmdline_user_args():
+  if arg == "--mirror": mirror = true
   if arg.begins_with("--out="): output_dir = arg.trim_prefix("--out=")
  DirAccess.make_dir_recursive_absolute(output_dir)
  root.size = Vector2i(1280,720)
@@ -73,6 +75,7 @@ func run() -> void:
    local_times[4] = time-1.25
   for i in range(actors.size()):
    var a = actors[i]
+   a.facing = -1 if mirror else 1
    a.phase = phases[i][0]
    a.phase_duration = phases[i][1]
    a.phase_elapsed = local_times[i]

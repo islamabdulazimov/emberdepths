@@ -318,12 +318,7 @@ func _draw() -> void:
   draw_arc(Vector2(0,-36), 49, visual_clock, visual_clock + PI * 0.8, 18, Color(1,0.82,0.61,0.4),2)
 
 func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) -> void:
- draw_line(shoulder, elbow, Color("18252e"), 12)
- draw_line(elbow, hand, Color("18252e"), 10)
- draw_line(shoulder, elbow, skin, 10)
- draw_line(elbow, hand, skin, 8)
- draw_rect(Rect2(hand - Vector2(4,4),Vector2(8,8)),skin)
- draw_line(shoulder + Vector2(0,-2), elbow + Vector2(0,-2), skin.lightened(0.08), 2)
+ preload("res://scripts/visuals/andrew_rig.gd").arm(self,shoulder,elbow,hand,skin)
 
 func _draw_leg(hip: Vector2, foot: Vector2, skin: Color) -> void:
  var knee := hip.lerp(foot,0.5) + Vector2(3,-1)
