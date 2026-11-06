@@ -21,10 +21,10 @@ class Resident extends Node2D:
   clock += delta
   queue_redraw()
  func _draw() -> void:
-  var texture: Texture2D = preload("res://assets/actors/julia.png") if id=="julia" else preload("res://assets/actors/cameron.png")
-  var frame := int(clock*2)%4
+  var texture: Texture2D = preload("res://assets/recast/npc_julia.png") if id=="julia" else preload("res://assets/recast/npc_cameron.png")
+  var frame := int(clock*5)%8
   draw_set_transform(Vector2.ZERO,0,Vector2(1 if id=="julia" else -1,1))
-  draw_texture_rect_region(texture,Rect2(-16,-28,32,40),Rect2(frame*32,0,32,40))
+  draw_texture_rect_region(texture,Rect2(-20,-34,40,48),Rect2(frame*40,0,40,48))
   draw_set_transform_matrix(Transform2D.IDENTITY)
 func _ready() -> void:
  main = get_parent()

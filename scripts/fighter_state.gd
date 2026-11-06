@@ -42,7 +42,7 @@ func advance(delta: float) -> bool:
  return mode == "attack" and previous < Tuning.BLADE.windup and elapsed >= Tuning.BLADE.windup
 
 func complete_tick() -> bool:
- if mode != "idle" and elapsed >= duration:
+ if mode!="block" and mode != "idle" and elapsed >= duration:
   reset()
   return true
  return false

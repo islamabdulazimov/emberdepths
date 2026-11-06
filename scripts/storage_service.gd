@@ -76,7 +76,7 @@ func open_view(id: int, cell: Vector2i, slot: int) -> bool:
  var body = main.get_node("Players").get_node_or_null(str(id))
  var chest = at_cell(cell)
  var status := "Здесь нет сундука" if chest == null else access_status(body,chest.anchor)
- if body == null or slot < 0 or slot >= 10 or not main.items.selected_definition(body,slot).is_empty(): status = "Выбери пустой слот для сундука"
+ if body == null or slot < 0 or slot >= 10 or main.items.inventory_for(id).item_at(slot)!="": status = "Выбери пустой слот для сундука"
  if status != "Можно открыть сундук":
   close_view(id,status)
   return false
@@ -119,8 +119,8 @@ func move(id: int, anchor: Vector2i, from_box: bool, source: int, to_box: bool, 
   send_view(id,"Перенос недоступен")
   return false
  if from_box or to_box: chest.revision += 1
- main.items.inventory_changed.emit(id)
  refresh(anchor)
+ main.items.inventory_changed.emit(id)
  return true
 
 func refresh(anchor: Vector2i) -> void:
@@ -207,3 +207,15 @@ func restore(data: Dictionary) -> void:
   apply_object(anchor,{"empty":true,"opened":false})
   chests[anchor].inventory.load_data(data[anchor])
   chests[anchor].known_empty = empty(chests[anchor])
+
+func quick_move(id:int,anchor:Vector2i,from_box:bool,source:int,revision:int) -> bool:
+ if not authoritative() or viewers.get(id,NONE)!=anchor or not chests.has(anchor):return false
+ var body=main.get_node("Players").get_node_or_null(str(id))
+ if access_status(body,anchor)!="Можно открыть сундук":close_view(id,"Сундук недоступен");return false
+ var chest=chests[anchor]
+ if revision!=chest.revision:send_view(id,"Сундук изменился — повтори перенос");return false
+ var bag=main.items.inventory_for(id)
+ var origin=chest.inventory if from_box else bag
+ var target=bag if from_box else chest.inventory
+ if not origin.quick_to(target,source,range(30)):send_view(id,"Нет места — предмет остался на месте");return false
+ chest.revision+=1;refresh(anchor);main.items.inventory_changed.emit(id);return true

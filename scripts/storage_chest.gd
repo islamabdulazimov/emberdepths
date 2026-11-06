@@ -15,14 +15,4 @@ func _process(delta: float) -> void:
  queue_redraw()
 
 func _draw() -> void:
- draw_rect(Rect2(-16,-6,32,14),Color("303b43"))
- draw_rect(Rect2(-15,-5,30,12),Color("98734f"))
- draw_rect(Rect2(-13,3,26,2),Color("644c3d"))
- var lift := roundf(smoothstep(0,1,lid)*6)
- draw_rect(Rect2(-14,-7,28,4),Color("18252e"))
- draw_rect(Rect2(-16,-8-lift,32,5),Color("ba9468"))
- draw_rect(Rect2(-15,-8-lift,30,1),Color("d6b581"))
- for x in [-13,10]:
-  draw_rect(Rect2(x,-7-lift,3,5),Color("78969a"))
-  draw_rect(Rect2(x,-3,3,10),Color("57757c"))
- draw_rect(Rect2(-2,-2-lift,4,5),Color("9bb4b2"))
+ draw_texture_rect_region(preload("res://assets/recast/chest.png"),Rect2(-16,-24,32,32),Rect2(clampi(roundi(lid*5),0,5)*32,0,32,32))

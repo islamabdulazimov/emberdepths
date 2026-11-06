@@ -26,6 +26,7 @@ func _ready() -> void:
  main.combat.entity_changed.connect(_entity_changed)
  main.combat.chest_changed.connect(_chest_changed)
  main.combat.player_changed.connect(_player_changed)
+ main.equipment_service.committed.connect(_equipment_committed)
  main.items.terrain_changed.connect(_terrain_changed)
  main.items.decoration_changed.connect(_decoration_changed)
  main.items.door_changed.connect(_door_changed)
@@ -402,11 +403,15 @@ func sync_storage_object(anchor: Vector2i, data: Dictionary) -> void:
 func _storage_view(id: int, anchor: Vector2i, slots: Array, revision: int, message: String) -> void:
  if id == 1 and (not active or multiplayer.is_server()):
   if is_instance_valid(main.inventory_ui): main.inventory_ui.apply_storage_view(anchor,slots,revision,message)
- elif active and connected and multiplayer.is_server(): _send(id,"sync_storage_view",[anchor,slots,revision,message])
+ elif active and connected and multiplayer.is_server():
+  var inventory=main.items.inventories.get(id)
+  _send(id,"sync_storage_view",[anchor,slots,revision,message,inventory.to_data() if inventory!=null else []])
 
 @rpc("authority", "call_remote", "reliable", 0)
-func sync_storage_view(anchor: Vector2i, slots: Array, revision: int, message: String) -> void:
+func sync_storage_view(anchor: Vector2i, slots: Array, revision: int, message: String,inventory_data:Array=[]) -> void:
  main.inventory_ui.apply_storage_view(anchor,slots,revision,message)
+ if inventory_data.size()==30:main.items.local_inventory().load_data(inventory_data)
+ main.inventory_ui.refresh()
 
 func open_storage_local(cell: Vector2i, slot: int) -> void:
  main.inventory_ui.storage_requested = true
@@ -603,3 +608,52 @@ func request_appearance(value: Dictionary) -> void:
  if body==null:return
  body.appearance=preload("res://data/appearance.gd").clean(value)
  main.combat.player_changed.emit(id,main.combat.player_data(body))
+
+var block_held:=false
+func block_local(held:bool) -> void:
+ if held==block_held:return
+ block_held=held
+ if not active or (connected and multiplayer.is_server()):main.equipment_service.block(int(str(main.player.name)),held)
+ elif connected:request_block.rpc_id(1,held)
+@rpc("any_peer","call_remote","reliable",0)
+func request_block(held:bool) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.equipment_service.block(id,held)
+func equip_local(index:int,slot:String) -> void:
+ if not active or (connected and multiplayer.is_server()):main.equipment_service.move(int(str(main.player.name)),index,slot)
+ elif connected:request_equip.rpc_id(1,index,slot)
+@rpc("any_peer","call_remote","reliable",0)
+func request_equip(index:int,slot:String) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.equipment_service.move(id,index,slot)
+
+func unequip_into_local(slot:String,index:int) -> void:
+ if not active or (connected and multiplayer.is_server()):main.equipment_service.into_bag(int(str(main.player.name)),slot,index)
+ elif connected:request_unequip_into.rpc_id(1,slot,index)
+@rpc("any_peer","call_remote","reliable",0)
+func request_unequip_into(slot:String,index:int) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.equipment_service.into_bag(id,slot,index)
+
+func quick_move_local(source:int,anchor:Vector2i=Vector2i(-1,-1),from_box:bool=false,revision:int=0) -> void:
+ if not active or (connected and multiplayer.is_server()):
+  if anchor==Vector2i(-1,-1):main.items.quick_move(int(str(main.player.name)),source)
+  else:main.storage.quick_move(int(str(main.player.name)),anchor,from_box,source,revision)
+ elif connected:request_quick_move.rpc_id(1,source,anchor,from_box,revision)
+@rpc("any_peer","call_remote","reliable",0)
+func request_quick_move(source:int,anchor:Vector2i,from_box:bool,revision:int) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if not multiplayer.is_server() or not main.saves.peer_profiles.has(id):return
+ if anchor==Vector2i(-1,-1):main.items.quick_move(id,source)
+ else:main.storage.quick_move(id,anchor,from_box,source,revision)
+
+func _equipment_committed(id:int) -> void:
+ if not active or not connected or not multiplayer.is_server() or id==1:return
+ var body=main.get_node("Players").get_node_or_null(str(id))
+ if body!=null:_send(id,"sync_equipment_commit",[id,main.combat.player_data(body),main.items.inventory_for(id).to_data()])
+@rpc("authority","call_remote","reliable",0)
+func sync_equipment_commit(id:int,life:Dictionary,inventory_data:Array) -> void:
+ if id!=multiplayer.get_unique_id() or inventory_data.size()!=30:return
+ main.items.local_inventory().load_data(inventory_data)
+ main.combat.apply_player_state(id,life)
+ main.inventory_ui.refresh()

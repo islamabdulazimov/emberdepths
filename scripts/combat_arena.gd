@@ -66,7 +66,7 @@ func reset_arena() -> void:
  player.medicine_cooldown = 0
  var bag = items.local_inventory()
  bag.load_data([])
- for entry in [["stone_blade",1],["stone_pick",1],["stone",30],["stone_wall",20],["torch",8],["spark_balm",6]]: bag.add(entry[0],entry[1])
+ for entry in [["stone_blade",1],["stone_pick",1],["stone",30],["stone_wall",20],["torch",8],["spark_balm",6],["wood",44]]: bag.add(entry[0],entry[1])
  interaction.selected_slot = 0
  arena_camera.force_update_scroll()
 

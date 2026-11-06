@@ -160,6 +160,7 @@ func _physics_process(delta: float) -> void:
 
 func selected_definition(body: CharacterBody2D, slot: int) -> Dictionary:
  var item_id: String = inventory_for(int(str(body.name))).item_at(slot)
+ if item_id=="":item_id=body.equipment.weapon
  return Items.DEFINITIONS.get(item_id, {})
 
 func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
@@ -395,7 +396,7 @@ func solid_bodies() -> Array:
 
 func door_toggle_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  if body.dead: return "Вы погибли"
- if slot < 0 or slot >= Inventory.HOTBAR_COUNT or not selected_definition(body,slot).is_empty(): return "Выбери пустой слот для двери"
+ if slot < 0 or slot >= Inventory.HOTBAR_COUNT or inventory_for(int(str(body.name))).item_at(slot)!="": return "Выбери пустой слот для двери"
  var door = main.world.door_at(cell)
  if door == null: return "Здесь нет двери"
  var excluded: Array[RID] = [door.get_rid()]
@@ -468,7 +469,9 @@ func swing(body: CharacterBody2D, slot: int, direction: Vector2) -> bool:
  main.combat.player_changed.emit(id, main.combat.player_data(body))
  attack_ready_at[id] = now + roundi(float(definition.swing_time) * 1000.0)
  var aim := direction.normalized() if direction.length_squared() > 0.1 else Vector2(body.facing, 0)
- attack_profiles[id] = {"damage": Battle.BLADE.damage, "poise": Battle.BLADE.poise, "reach": Battle.BLADE.reach, "arc_dot":Battle.BLADE.arc_dot, "unarmed": false}
+ body.held_item=inventory_for(id).item_at(slot)
+ if body.held_item=="":body.held_item=body.equipment.weapon
+ attack_profiles[id] = {"damage": int(definition.damage), "poise": int(definition.poise_damage), "reach": float(definition.reach), "arc_dot":Battle.BLADE.arc_dot, "unarmed": false}
  body.fighter.begin("attack",aim,Battle.BLADE.windup+Battle.BLADE.active+Battle.BLADE.recovery,attack_profiles[id])
  body.play_swing(aim)
  main.combat.player_changed.emit(id,main.combat.player_data(body))
@@ -492,3 +495,12 @@ func punch(body: CharacterBody2D, direction: Vector2) -> bool:
  body.play_swing(aim, true)
  attack_started.emit(id, aim)
  return true
+
+func quick_move(id:int,source:int) -> bool:
+ if not main.combat.authoritative() or source<0 or source>=30:return false
+ var body=main.get_node("Players").get_node_or_null(str(id))
+ if body==null or body.dead:return false
+ var bag=inventory_for(id)
+ var moved:bool=bag.quick_to(bag,source,range(10,30) if source<10 else range(10))
+ if moved:inventory_changed.emit(id)
+ return moved

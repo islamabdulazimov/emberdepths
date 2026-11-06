@@ -97,6 +97,7 @@ func chest_data(id: int, include_contents: bool = false) -> Dictionary:
  var data := {"position": chest.position, "owner": chest.owner_id, "profile": chest.owner_profile}
  if include_contents:
   data["contents"] = chest.contents.duplicate(true)
+  data["equipment"]=chest.equipment.duplicate()
  return data
 
 func set_chest(id: int, data: Dictionary) -> void:
@@ -114,6 +115,7 @@ func set_chest(id: int, data: Dictionary) -> void:
  chests[id].position = data.position
  chests[id].owner_id = data.owner
  chests[id].owner_profile = data.get("profile", "")
+ chests[id].equipment=preload("res://data/equipment.gd").clean(data.get("equipment",{}))
  chests[id].contents = data.get("contents", []).duplicate(true)
  next_chest_id = maxi(next_chest_id, id + 1)
 
@@ -142,7 +144,7 @@ func line_clear(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
 
 func player_data(body: CharacterBody2D) -> Dictionary:
  var state: Dictionary = body.resources.snapshot()
- state.merge({"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
+ state.merge({"equipment":body.equipment.duplicate(),"held_item":body.held_item,"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
  state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
  return state
 
@@ -150,6 +152,7 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null:
   return
+ if body.visual_initialized and data.dead and not body.dead:main.effects.hero_death(body)
  var changed_life: bool = body.life_revision != int(data.revision)
  var healed: int = maxi(0,int(data.health)-body.health) if not changed_life else 0
  body.profile_id = data.get("profile", body.profile_id)
@@ -161,6 +164,8 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  body.medicine_cooldown = float(data.get("medicine_cooldown",0))
  body.medicine_progress = float(data.get("medicine_progress",0))
  if healed > 0: body.show_heal(healed)
+ body.equipment=preload("res://data/equipment.gd").clean(data.get("equipment",{}))
+ body.held_item=str(data.get("held_item",""))
  body.appearance=preload("res://data/appearance.gd").clean(data.get("appearance",body.appearance))
  body.dead = data.dead
  body.unclothed = data.unclothed
@@ -187,6 +192,7 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  body.fighter.interrupt()
  body.swing_remaining = 0
  body.work_remaining = 0
+ if not bypass_immunity:amount=maxi(1,amount-mini(preload("res://data/equipment.gd").armor(body.equipment),floori(amount*0.35)))
  body.health = maxi(0, body.health - amount)
  body.since_hurt = 0.0
  body.regen_fraction = 0.0
@@ -201,6 +207,7 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  return true
 
 func _kill(body: CharacterBody2D) -> void:
+ main.effects.hero_death(body)
  var id := int(str(body.name))
  body.fighter.reset()
  body.dead = true
@@ -216,7 +223,8 @@ func _kill(body: CharacterBody2D) -> void:
  at.x = clampf(at.x, 8.0, main.world.world_width * 16 - 8)
  at.y = clampf(at.y, 16.0, main.world.world_depth * 16 - 16)
  var inventory = main.items.inventory_for(id)
- set_chest(chest_id, {"owner": id, "profile": body.profile_id, "position": at, "contents": inventory.to_data()})
+ set_chest(chest_id, {"owner": id, "profile": body.profile_id, "position": at, "contents": inventory.to_data(),"equipment":body.equipment.duplicate()})
+ body.equipment=preload("res://data/equipment.gd").empty()
  inventory.load_data([])
  main.items.inventory_changed.emit(id)
  body.last_chest_position = at
@@ -254,6 +262,8 @@ func break_chest(body: CharacterBody2D, cell: Vector2i) -> bool:
  var chest = chests[id]
  var at: Vector2 = chest.position
  var contents: Array = chest.contents.duplicate(true)
+ for item in chest.equipment.values():
+  if item!="":contents.append({"item":item,"count":1})
  var owner_id: int = chest.owner_id
  set_chest(id, {})
  chest_changed.emit(id, {})
@@ -365,6 +375,17 @@ func receive_attack(id: int, amount: int, source: Vector2, attacker: Node2D, par
   main.effects.burst("impact",body.position+Vector2(body.facing*12,-8))
   player_changed.emit(id,player_data(body))
   return "parried"
+ if body.fighter.mode=="block" and (source.x-body.position.x)*body.facing>=-1 and body.equipment.shield!="":
+  var shield:Dictionary=preload("res://data/items.gd").DEFINITIONS[body.equipment.shield]
+  var cost:=maxf(shield.block_min_stamina,amount*shield.block_stamina_factor)
+  if body.resources.spend_stamina(cost):
+   damage_player(id,maxi(1,ceili(amount*(1-float(shield.block_percent)/100))),source)
+   if not body.dead:body.fighter.reset();body.fighter.begin("block",Vector2(body.facing,0),1.0)
+   body.block_flash=0.15;player_changed.emit(id,player_data(body));return "blocked"
+  body.resources.stamina=0
+  damage_player(id,amount,source)
+  if not body.dead:body.fighter.reset();body.fighter.begin("guard_break",Vector2(body.facing,0),shield.block_break_seconds)
+  player_changed.emit(id,player_data(body));return "guard_broken"
  return "hit" if damage_player(id,amount,source) else "immune"
 
 func tick_fighter(body: CharacterBody2D, delta: float) -> void:

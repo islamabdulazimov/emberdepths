@@ -1,7 +1,7 @@
 extends Node2D
 static var light_texture: Texture2D
 var clock := 0.0
-var base_energy := 1.35
+var base_energy := 0.85
 var light: PointLight2D
 
 func _ready() -> void:
@@ -22,17 +22,14 @@ func _ready() -> void:
  z_index = 1
 func _process(delta: float) -> void:
  clock += delta
- light.energy = base_energy+sin(clock*5.1)*0.035+sin(clock*11.3)*0.025
+ var factor:=1.0
+ var main:=get_parent().get_parent()
+ if is_instance_valid(main.get("combat")):
+  var night:float=preload("res://data/daylight.gd").sample(main.combat.world_time).night
+  var column:=clampi(floori(global_position.x/16),0,main.world.world_width-1)
+  var depth:float=global_position.y/16-main.world.heights[column]
+  factor=lerpf(0.08,1.0,maxf(night,smoothstep(2,15,depth)))
+ light.energy=(base_energy+sin(clock*5.1)*0.025+sin(clock*11.3)*0.015)*factor
  queue_redraw()
 func _draw() -> void:
- var frame := floori(clock*9)
- var bend := posmod(frame*7,3)-1
- var height := 5+posmod(frame,3)
- draw_rect(Rect2(-2,-1,4,9),Color("18252e"))
- draw_rect(Rect2(-1,0,2,7),Color("bd8058"))
- draw_rect(Rect2(-3,-1,6,2),Color("455d68"))
- draw_rect(Rect2(-2,-height,4,height),Color("bd8058"))
- draw_rect(Rect2(-1+bend,-height-1,2,height-1),Color("f2b36e"))
- draw_rect(Rect2(0,-4,1,4),Color("f4e2b6"))
- var rise := fposmod(clock*0.7,1)
- draw_rect(Rect2(roundf(sin(clock*2)*2),roundf(-9-rise*8),1,1),Color(0.94,0.72,0.44,(1-rise)*0.7))
+ draw_texture_rect_region(preload("res://assets/recast/torch.png"),Rect2(-8,-15,16,24),Rect2(int(clock*10)%8*16,0,16,24))

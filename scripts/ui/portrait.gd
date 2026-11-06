@@ -13,6 +13,9 @@ func _ready() -> void:
  body.position = Vector2(40,70)
  body.scale = Vector2(2,2)
  add_child(body)
+ body.set_physics_process(false)
+ body.physics_interpolation_mode=Node.PHYSICS_INTERPOLATION_MODE_OFF
+ body.get_node("Camera2D").enabled=false
 func update_appearance(value: Dictionary) -> void:
  appearance = value.duplicate()
  if is_instance_valid(body):

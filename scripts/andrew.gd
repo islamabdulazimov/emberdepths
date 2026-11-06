@@ -301,16 +301,7 @@ func _draw() -> void:
    draw_rect(Rect2(Vector2(sin(phase_elapsed * 5 + i * TAU / 3) * 16, -76 + cos(phase_elapsed * 5 + i * TAU / 3) * 3), Vector2(3,3)), Color("f6d68d"))
  if absf(velocity.y) < 5 and phase not in ["backflip","super_flight"]:
   draw_rect(Rect2(-18,-1,36,2),Color(0.06,0.10,0.13,0.24))
- # Transform only the artwork. World-space warning geometry above stays exact.
- var pose: Dictionary = visual_pose if not visual_pose.is_empty() else Pose.sample(phase, phase_elapsed, phase_duration, visual_clock, velocity.x)
- var turn_width: float = (0.16+0.84*absf(float(pose.turn)))*visual_turn_width
- var transform := Transform2D(float(pose.rotation) * visual_facing, Vector2.ZERO)
- var pivot := Vector2(0,-28)
- transform.origin = pivot - transform * pivot
- transform = Transform2D(float(pose.lean) * visual_facing, Vector2(pose.scale) * Vector2(visual_facing * turn_width, 1), 0, pose.offset) * transform
- draw_set_transform_matrix(transform)
- preload("res://scripts/visuals/andrew_art.gd").draw_body(self,pose,phase,visual_hit,visual_clock)
- draw_set_transform_matrix(Transform2D.IDENTITY)
+ preload("res://scripts/visuals/andrew_sprite.gd").draw_actor(self)
  # Short motion trails are cosmetic; damage still follows the existing phase.
  if preload("res://data/presentation.gd").combat_debug and phase == "uppercut_active":
   draw_arc(Vector2(facing * 13,-39), 28, -1.3 if facing > 0 else PI-0.3, 0.3 if facing > 0 else PI+1.3, 10, Color(1,0.82,0.61,0.4),2)
@@ -351,7 +342,7 @@ func _process(delta: float) -> void:
   elif phase == "intro": emit_visual("respawn",position+Vector2(0,-35))
   elif phase == "super_flight": emit_visual("land",position)
   visual_phase = phase
- visual_clock += delta * (absf(velocity.x)*TAU/30.0 if phase=="chase" else 2.0)
+ visual_clock += delta * (absf(velocity.x)*TAU/(16.0/0.6) if phase=="chase" else 2.0)
  visual_hit = maxf(0, visual_hit - delta)
  var render_time: float = motion_track.advance(phase,phase_elapsed,delta,phase_duration)
  var target_pose := Pose.sample(phase,render_time,phase_duration,visual_clock,velocity.x)

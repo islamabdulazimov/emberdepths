@@ -13,6 +13,8 @@ var build_cooldown := 0.0
 var outline_color := Color.WHITE
 
 func _unhandled_key_input(event: InputEvent) -> void:
+ if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode==KEY_ESCAPE and get_parent().inventory_ui.opened:
+  get_parent().inventory_ui.toggle();get_viewport().set_input_as_handled();return
  if get_parent().ui_blocked(): return
  if get_viewport().gui_get_focus_owner() is LineEdit:
   return
@@ -36,9 +38,9 @@ func _unhandled_input(event: InputEvent) -> void:
    selected_slot = (selected_slot + 1) % 10
   elif event.button_index == MOUSE_BUTTON_RIGHT and can_use_mouse() and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
    var cell: Vector2i = world.cell_at(get_global_mouse_position())
-   if get_parent().items.selected_definition(player,selected_slot).is_empty() and world.door_at(cell) != null:
+   if get_parent().items.local_inventory().item_at(selected_slot)=="" and world.door_at(cell) != null:
     network.toggle_door_local(cell,selected_slot)
-   elif get_parent().items.selected_definition(player,selected_slot).is_empty() and get_parent().storage.at_cell(cell) != null:
+   elif get_parent().items.local_inventory().item_at(selected_slot)=="" and get_parent().storage.at_cell(cell) != null:
     network.open_storage_local(cell,selected_slot)
 
 func can_use_mouse() -> bool:
@@ -119,7 +121,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s · %s\n%s%s\nSeed %d · Вы (%d, %d) · Esc — инвентарь · Shift — перекат · F — парирование" % [health_text + " · " if health_text != "" else "", combat.time_label()+((" · "+world.describe_location(location)) if world.generator_version >= 2 else ""), definition.get("name", "Пустой слот"),status,grave_text,world.world_seed,location.x,location.y]
+ label.text = "%s · %s\n%s%s"%[combat.time_label(),definition.get("name","Пустой слот"),status,grave_text]
  label.tooltip_text = "A/D — движение · Space — прыжок\nЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — панель · Esc — инвентарь · Shift — перекат · F — парирование"
  queue_redraw()
 

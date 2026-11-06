@@ -112,9 +112,9 @@ func import_legacy() -> void:
   if envelope.is_empty() or not envelope.get("payload") is String or envelope.get("sha256","") != envelope.payload.sha256_text():
    warn("Старое сохранение повреждено: "+file)
    continue
-  var codec = preload("res://scripts/save_codec.gd").new()
+  var codec = load("res://scripts/save_codec.gd").new()
   var state: Variant = codec.decode(JSON.parse_string(envelope.payload))
-  if not state is Dictionary or preload("res://scripts/save_schema.gd").validate(state) != "":
+  if not state is Dictionary or load("res://scripts/save_schema.gd").validate(state) != "":
    warn("Не удалось прочитать старый мир: "+file)
    continue
   DirAccess.make_dir_recursive_absolute(ROOT+"/backups")

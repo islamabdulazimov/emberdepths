@@ -12,4 +12,9 @@ const DEFINITIONS := {
  "wood_wall": {"output": "wood_wall", "count": 4, "ingredients": {"wood": 1}},
  "wood_door": {"output": "wood_door", "count": 1, "ingredients": {"wood": 3}},
  "wood_chest": {"output": "wood_chest", "count": 1, "ingredients": {"wood": 6}},
+ "wood_sword":{"output":"wood_sword","count":1,"ingredients":{"wood":8}},
+ "wood_shield":{"output":"wood_shield","count":1,"ingredients":{"wood":10}},
+ "wood_helm":{"output":"wood_helm","count":1,"ingredients":{"wood":6}},
+ "wood_armor":{"output":"wood_armor","count":1,"ingredients":{"wood":12}},
+ "wood_legs":{"output":"wood_legs","count":1,"ingredients":{"wood":8}},
 }

@@ -14,7 +14,7 @@ func _ready() -> void:
  shape.radius = 3.0
  collider.shape = shape
  add_child(collider)
- icon = Items.icon(item_id)
+ icon = load("res://assets/recast/drop_%s.png"%item_id)
  z_index = 2
 
 func _process(delta: float) -> void:
@@ -25,7 +25,7 @@ func _draw() -> void:
  var phase := visual_time*3.5+float(item_id.hash()%31)
  var bob := roundf(sin(phase))
  draw_rect(Rect2(-4,3,8,1),Color(0.05,0.10,0.13,0.22))
- draw_texture_rect(icon,Rect2(Vector2(-4,-5+bob),Vector2(8,8)),false)
+ draw_texture_rect(icon,Rect2(Vector2(-6,-7+bob),Vector2(12,12)),false)
  var sparkle := fposmod(phase*0.22,1.0)
  if sparkle < 0.35:
   var color := Color("e1dec2")

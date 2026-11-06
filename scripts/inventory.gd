@@ -141,3 +141,16 @@ func craft(recipe_id: String) -> bool:
   return false
  load_data(preview.slots)
  return true
+
+# Merge into every suitable destination, then empty slots; no swaps on fast move.
+func quick_to(other:RefCounted,source:int,candidates:Array) -> bool:
+ if source<0 or source>=30 or slots[source].count<=0:return false
+ var moved:=false
+ for empty_pass in [false,true]:
+  for dest in candidates:
+   if dest<0 or dest>=30 or (other==self and dest==source):continue
+   if slots[source].count<=0:return moved
+   var item:String=slots[source].item
+   if (other.slots[dest].item=="" if empty_pass else other.slots[dest].item==item and other.slots[dest].count<Items.stack_limit(item)):
+    moved=transfer_to(other,source,dest) or moved
+ return moved

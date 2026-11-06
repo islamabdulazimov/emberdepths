@@ -1,4 +1,5 @@
 extends Node2D
+var equipment:Dictionary={}
 var owner_id := 1
 var owner_profile := ""
 var contents: Array = []
@@ -12,12 +13,7 @@ func _process(delta: float) -> void:
  queue_redraw()
 
 func _draw() -> void:
- draw_rect(Rect2(-8, -6, 16, 14), Color("584f51"))
- draw_rect(Rect2(-7, -7, 14, 5), Color("a27d5b"))
- draw_rect(Rect2(-7, 0, 14, 6), Color("795a49"))
- draw_rect(Rect2(-5, -6, 2, 13), Color("c6a86f"))
- draw_rect(Rect2(3, -6, 2, 13), Color("c6a86f"))
- draw_rect(Rect2(-1, -2, 3, 4), Color("f1d797"))
+ draw_texture_rect_region(preload("res://assets/recast/chest.png"),Rect2(-10,-12,20,20),Rect2(0,0,32,32),Color("b1c4c3"))
  var at := Vector2(0,roundf(-15-sin(clock*2)*1.5))
  var color := Color("88aaa9")
  draw_line(at+Vector2(0,-3),at+Vector2(3,0),color,1)

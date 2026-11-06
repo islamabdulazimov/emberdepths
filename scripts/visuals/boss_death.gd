@@ -7,13 +7,8 @@ func _process(delta: float) -> void:
  if age>=0.85:queue_free()
  else:queue_redraw()
 func _draw() -> void:
- var t:=smoothstep(0,0.45,age)
- var pose:Dictionary=preload("res://scripts/visuals/andrew_pose.gd").sample("stunned",age,0.85,0,0)
- pose.front_hand=Vector2(28,-12).lerp(Vector2(31,-4),t);pose.back_hand=Vector2(-26,-14).lerp(Vector2(-29,-3),t)
- pose.front_elbow=Vector2(26,-26).lerp(Vector2(31,-20),t);pose.back_elbow=Vector2(-25,-29).lerp(Vector2(-29,-22),t)
- pose.front_foot=Vector2(10,0).lerp(Vector2(22,0),t);pose.back_foot=Vector2(-10,0).lerp(Vector2(-18,0),t)
- draw_set_transform(Vector2.ZERO,0,Vector2(facing,lerpf(1,0.55,t)))
- preload("res://scripts/visuals/andrew_art.gd").draw_body(self,pose,"death",0,0)
+ draw_set_transform(Vector2.ZERO,0,Vector2(facing,1))
+ draw_texture_rect_region(preload("res://assets/recast/andrew.png"),Rect2(-64,-112,128,128),Rect2(clampi(int(age/0.85*12),0,11)*128,15*128,128,128))
  draw_set_transform_matrix(Transform2D.IDENTITY)
 func _draw_arm(a: Vector2,b: Vector2,c: Vector2,color: Color) -> void:preload("res://scripts/visuals/andrew_rig.gd").arm(self,a,b,c,color)
 func _draw_leg(a: Vector2,c: Vector2,color: Color) -> void:

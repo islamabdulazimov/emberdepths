@@ -44,6 +44,7 @@ static func cell(value: Variant, width: int, depth: int) -> bool:
 static func life(value: Variant, width: int, depth: int) -> bool:
  if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
   return false
+ if value.has("equipment") and not preload("res://data/equipment.gd").valid(value.equipment):return false
  if value.has("appearance") and not preload("res://data/appearance.gd").valid(value.appearance): return false
  if not integer(value.get("max_health", 100), 1, 1000000) or not integer(value.health, 0, int(value.get("max_health", 100))) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
   return false
@@ -178,6 +179,7 @@ static func validate(value: Variant) -> String:
   var chest: Variant = combat.chests[id]
   if not integer(id, 1, int(combat.next_chest) - 1) or not chest is Dictionary or not chest.has_all(["position", "owner", "profile", "contents"]):
    return "Неполный сундук"
+  if not preload("res://data/equipment.gd").valid(chest.get("equipment",{})):return "Неверное снаряжение в сундуке смерти"
   if not point(chest.position, width, depth) or not integer(chest.owner, 1, 2147483647) or not hex_id(chest.profile, 32) or not inventory(chest.contents):
    return "Неверный сундук"
  return ""

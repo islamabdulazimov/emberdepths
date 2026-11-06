@@ -42,57 +42,15 @@ func _draw() -> void:
   if alpha < 0.01: continue
   var at := Vector2(star.x * size.x, star.y * size.y).round()
   draw_rect(Rect2(at, Vector2.ONE * (2 if star.z > 0.8 else 1)), Color(0.89,0.93,1,alpha))
- if state.sun_alpha > 0:
-  var at := Daylight.orbit(state.sun_progress, size).round()
-  var alpha: float = state.sun_alpha * visibility
-  _disc(at, 20, Color(1,0.79,0.47,0.06 * alpha))
-  _disc(at, 15, Color(1,0.83,0.51,0.12 * alpha))
-  _disc(at, 11, Color(1,0.84,0.54,alpha))
-  _disc(at + Vector2(-1,-1), 8, Color(1,0.94,0.73,alpha))
- if state.moon_alpha > 0:
-  var at := Daylight.orbit(state.moon_progress, size).round()
-  var alpha: float = state.moon_alpha * visibility
-  _disc(at, 18, Color(0.68,0.82,0.98,0.06 * alpha))
-  _disc(at, 10, Color(0.82,0.89,0.88,alpha))
-  _disc(at + Vector2(3,-1), 8, Color(0.56,0.66,0.73,alpha))
-  draw_rect(Rect2(at + Vector2(-5,-4),Vector2(3,3)),Color(0.65,0.75,0.77,alpha))
-  draw_rect(Rect2(at + Vector2(-3,3),Vector2(2,2)),Color(0.65,0.75,0.77,alpha))
-
- # Slow cloud shelves and distant basalt spires use the shared world time too.
+ if state.sun_alpha>0:draw_texture_rect(preload("res://assets/recast/sun.png"),Rect2(Daylight.orbit(state.sun_progress,size).round()-Vector2(20,20),Vector2(40,40)),false,Color(1,1,1,state.sun_alpha*visibility))
+ if state.moon_alpha>0:draw_texture_rect(preload("res://assets/recast/moon.png"),Rect2(Daylight.orbit(state.moon_progress,size).round()-Vector2(20,20),Vector2(40,40)),false,Color(1,1,1,state.moon_alpha*visibility))
  for i in range(6):
-  var x := fposmod(i*193.0+main.combat.world_time*(0.7+i*0.09),size.x+180)-90
-  var y := size.y*(0.16+float(i%3)*0.075)
-  var cloud: Color = state.horizon.lerp(Color("e1dec2"),0.25)
-  cloud.a = visibility*lerpf(0.30,0.08,state.night)
-  draw_rect(Rect2(roundf(x),roundf(y),66+i%3*14,4),cloud)
-  draw_rect(Rect2(roundf(x+12),roundf(y-3),37+i%2*9,3),cloud)
+  var x:=fposmod(i*193.0+main.combat.world_time*(0.7+i*0.09),size.x+180)-90
+  var y:=size.y*(0.15+float(i%3)*0.075)
+  draw_texture_rect_region(preload("res://assets/recast/clouds.png"),Rect2(Vector2(roundf(x),roundf(y)),Vector2(64,24)),Rect2(i%4*64,0,64,24),Color(1,1,1,visibility*lerpf(0.4,0.1,state.night)))
  for layer in range(3):
-  var ridge := PackedVector2Array([Vector2(0,size.y)])
-  var base := size.y*(0.71+layer*0.085)
-  for i in range(18):
-   var x := float(i)/17*size.x
-   var height := float(posmod(i*37+layer*71,43))+12
-   ridge.append(Vector2(x,base-height))
-   if i%3 == 0:
-    ridge.append(Vector2(x+4,base-height-13))
-    ridge.append(Vector2(x+10,base-height-13))
-  ridge.append(size)
-  var color: Color = state.horizon.lerp(Color("293b46"),0.3+layer*0.15)
-  color.a = visibility*0.7
-  draw_colored_polygon(ridge,color)
-
- # Weathered spans on the far horizon. Original, purely background architecture.
- var ruin: Color = state.horizon.lerp(Color("293b46"),0.43)
- ruin.a = visibility*0.55
- for i in range(4):
-  var x := floorf(size.x*(0.12+i*0.24))
-  var y := floorf(size.y*(0.62+float(i%2)*0.055))
-  draw_rect(Rect2(x,y,5,38),ruin)
-  draw_rect(Rect2(x+29,y+4,7,34),ruin)
-  draw_rect(Rect2(x-2,y-5,40,5),ruin)
-  draw_rect(Rect2(x+5,y,5,5),ruin)
-  draw_rect(Rect2(x+24,y+1,5,5),ruin)
-  draw_rect(Rect2(x-1,y-11,8,6),ruin)
+  var texture:Texture2D=[preload("res://assets/recast/background_0.png"),preload("res://assets/recast/background_1.png"),preload("res://assets/recast/background_2.png")][layer]
+  draw_texture_rect(texture,Rect2(Vector2.ZERO,size),false,Color.WHITE.lerp(Color("7c91aa"),state.night)*Color(1,1,1,visibility*0.82))
 
 func _disc(at: Vector2, radius: int, color: Color) -> void:
  # Pixel steps rather than antialiased vector circles.

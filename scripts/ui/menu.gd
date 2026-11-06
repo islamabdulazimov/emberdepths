@@ -22,7 +22,7 @@ func _ready() -> void:
  theme = Art.theme()
  set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  backdrop = TextureRect.new()
- backdrop.texture = preload("res://assets/menu_backdrop.png")
+ backdrop.texture = preload("res://assets/recast/menu.png")
  backdrop.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
  backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

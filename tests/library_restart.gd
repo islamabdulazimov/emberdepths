@@ -43,5 +43,7 @@ func run() -> void:
     check(main.world.generator_version==3 and main.world.world_width==896 and main.items.local_inventory().count_item("emberstone")==11,"continue exact new large world and inventory")
     check(main.world.block_at(Vector2i(420,90))==4 and main.player.position==main.world.npc_records.cameron.position+Vector2(30,0),"modified tile and precise position after process restart")
     check(main.npcs.actors.size()==2 and main.player.appearance.skin==2,"appearance and residents persist")
+    check(main.player.equipment.head=="wood_helm" and main.player.equipment.body=="wood_armor" and main.player.equipment.legs=="wood_legs" and main.player.equipment.shield=="wood_shield","starter armor and shield survive separate process restart")
+    check(main.items.local_inventory().count_item("wood_sword")==1,"restart grants no duplicate starter sword")
    main.queue_free();await process_frame
  print("LIBRARY_RESTART_CHECKS ",checks," FAILURES ",failures);quit(1 if failures else 0)

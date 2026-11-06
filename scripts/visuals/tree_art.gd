@@ -1,18 +1,16 @@
 extends RefCounted
-const CANOPY = preload("res://assets/canopy.png")
+const CANOPY = preload("res://assets/recast/canopy.png")
 const Trees = preload("res://data/trees.gd")
 
 static func draw_tree(canvas: Node2D, record: Dictionary, time: float) -> void:
  var height: float = record.height * 16
  var wind := Trees.wind(record, time)
- var bark := Color("80624f") if record.form != 1 else Color("a8a18a")
+ var bark := Color("8e7354")
  var shade := Color("29383e")
- # Fixed roots, tapering trunk, branch tips moving independently of the base.
- canvas.draw_colored_polygon(PackedVector2Array([Vector2(-9,1),Vector2(-4,-9),Vector2(-3,-height),Vector2(2,-height-3),Vector2(5,-8),Vector2(10,1)]), shade)
- canvas.draw_colored_polygon(PackedVector2Array([Vector2(-5,0),Vector2(-2,-height),Vector2(1,-height),Vector2(3,-9),Vector2(6,0)]), bark)
- for i in range(2, int(height) - 8, 8):
-  var offset := posmod(i * 13 + int(record.seed), 3) - 1
-  canvas.draw_rect(Rect2(offset,-i,2,4),bark.lightened(0.12) if i % 3 else shade)
+ for segment in range(int(record.height)):
+  var variant:=posmod(int(record.seed)+segment,4)
+  canvas.draw_texture_rect_region(preload("res://assets/recast/bark.png"),Rect2(-6,-(segment+1)*16,12,16),Rect2(variant*12,0,12,16))
+ canvas.draw_texture(preload("res://assets/recast/roots.png"),Vector2(-16,-15))
  for side in [-1, 1]:
   var joint := Vector2(side * 2, -height * 0.45)
   var elbow := Vector2(side * 15, -height * 0.61)
@@ -46,4 +44,4 @@ static func _crown(canvas: Node2D, at: Vector2, half: Vector2, colors: Array, se
  if colors[0] == Color("3c5b51"): row = 1
  elif colors[0] == Color("304c4b"): row = 2
  var source := Rect2(posmod(seed_value,4)*64,row*52,64,52)
- canvas.draw_texture_rect_region(CANOPY,Rect2(at.round()-half,half*2),source)
+ canvas.draw_texture_rect_region(CANOPY,Rect2(at.round()-Vector2(32,26),Vector2(64,52)),source)

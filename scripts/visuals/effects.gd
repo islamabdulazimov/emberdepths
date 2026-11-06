@@ -103,7 +103,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
  for ghost in ghosts:
-  preload("res://scripts/visuals/actor_atlas.gd").draw_frame(self,ghost.kind,6,int(ghost.age/0.5*6),ghost.position,ghost.facing,1-ghost.age/0.5)
+  preload("res://scripts/visuals/actor_atlas.gd").draw_frame(self,ghost.kind,6,int(ghost.age/0.5*8),ghost.position,ghost.facing,1-ghost.age/0.5)
  for p in particles:
   var color: Color = p.color
   color.a = 1-smoothstep(0.35,1,p.age/p.life)
@@ -118,3 +118,6 @@ func _draw() -> void:
    var a: Vector2 = ring.position+Vector2.from_angle(PI*0.5*i)*r
    var b: Vector2 = ring.position+Vector2.from_angle(PI*0.5*(i+1))*r
    draw_line(a.round(),a.lerp(b,0.72).round(),color,1)
+
+func hero_death(body:Node2D) -> void:
+ var echo:=Node2D.new();echo.set_script(preload("res://scripts/visuals/hero_death.gd"));echo.position=body.position;echo.appearance=body.appearance.duplicate();echo.equipment=body.equipment.duplicate();echo.bare=body.unclothed;echo.facing=body.facing;add_child(echo)

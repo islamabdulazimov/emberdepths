@@ -9,6 +9,7 @@ var combat: Node2D
 var encounter: Node2D
 var combat_zone: Node2D
 var effects: Node2D
+var equipment_service:Node
 var npcs: Node
 var pause_ui: CanvasLayer
 var pause_open := false
@@ -23,13 +24,14 @@ var inventory_ui: CanvasLayer
 var ambient: CanvasModulate
 var presentation_clock := 0.0
 var fps_clock := 0.0
+var hud_help_label:Label
 var fps_label: Label
 var sky: Control
 @onready var world = $World
 
 func _ready() -> void:
  fps_label = Label.new()
- fps_label.position = Vector2(708,100)
+ fps_label.position = Vector2(708,80)
  fps_label.size = Vector2(224,20)
  fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
  fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -38,6 +40,10 @@ func _ready() -> void:
  fps_label.add_theme_color_override("font_outline_color",Color("18252e"))
  fps_label.add_theme_constant_override("outline_size",2)
  $HUD.add_child(fps_label)
+ hud_help_label=Label.new();hud_help_label.theme=preload("res://scripts/visuals/art_direction.gd").theme();hud_help_label.position=Vector2(14,478);hud_help_label.text="Esc: сумка · P: меню\nShift: перекат · F: парирование\nR: держать щит";hud_help_label.add_theme_font_size_override("font_size",10);hud_help_label.mouse_filter=Control.MOUSE_FILTER_IGNORE;$HUD.add_child(hud_help_label)
+ $HUD/Panel.offset_left=570
+ $HUD/Panel.offset_right=946
+ $HUD/Panel.offset_bottom=78
  $HUD/Panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  $HUD/Panel/Label.add_theme_font_size_override("font_size",12)
  ambient = CanvasModulate.new()
@@ -78,6 +84,7 @@ func _ready() -> void:
  exploration.name = "Exploration"
  exploration.set_script(preload("res://scripts/exploration.gd"))
  add_child(exploration)
+ equipment_service=Node.new();equipment_service.set_script(preload("res://scripts/equipment_service.gd"));add_child(equipment_service)
  npcs=Node.new()
  npcs.name="Residents"
  npcs.set_script(preload("res://scripts/residents.gd"))
@@ -110,11 +117,13 @@ func _ready() -> void:
  var resources_ui := Control.new()
  resources_ui.name = "PlayerResources"
  resources_ui.set_script(preload("res://scripts/player_resources_ui.gd"))
+ resources_ui.theme=preload("res://scripts/visuals/art_direction.gd").theme()
  resources_ui.main = self
  resources_ui.position = Vector2(14, 14)
  $HUD.add_child(resources_ui)
  boss_ui = Control.new()
  boss_ui.set_script(preload("res://scripts/boss_ui.gd"))
+ boss_ui.theme=preload("res://scripts/visuals/art_direction.gd").theme()
  boss_ui.main = self
  $HUD.add_child(boss_ui)
  _create_network_ui()
@@ -131,6 +140,7 @@ func _ready() -> void:
    get_tree().call_deferred("change_scene_to_file","res://scenes/menu.tscn")
    return
   if GameApp.new_game:
+   equipment_service.starter(1)
    exploration.initialize_loot()
    if not saves.save_now():
     GameApp.menu_error=saves.status
@@ -141,6 +151,8 @@ func _ready() -> void:
  pause_ui=CanvasLayer.new()
  pause_ui.set_script(preload("res://scripts/ui/pause_menu.gd"))
  add_child(pause_ui)
+ network_row.reparent(pause_ui);network_row.position=Vector2(14,490)
+ network_status.reparent(pause_ui);network_status.position=Vector2(14,524);network_status.hide()
  _arena_button()
  get_tree().auto_accept_quit = false
  for arg in OS.get_cmdline_user_args():
@@ -201,6 +213,8 @@ func _create_network_ui() -> void:
  var panel := HBoxContainer.new()
  panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  panel.position = Vector2(14, 470)
+ network_row=panel
+ panel.hide()
  $HUD.add_child(panel)
  var address := LineEdit.new()
  address.placeholder_text = "IP хоста"
@@ -210,20 +224,31 @@ func _create_network_ui() -> void:
  var host := Button.new()
  host.text = "Создать сервер"
  panel.add_child(host)
- host.pressed.connect(func(): network.host_game(); get_viewport().gui_release_focus())
+ host.pressed.connect(func():
+  if network.host_game()==OK:get_tree().paused=false
+  network_status.text=network.status
+  get_viewport().gui_release_focus())
  var join := Button.new()
  join.text = "Подключиться"
  panel.add_child(join)
- join.pressed.connect(func(): network.join_game(address.text); get_viewport().gui_release_focus())
+ join.pressed.connect(func():
+  if network.join_game(address.text)==OK:get_tree().paused=false
+  network_status.text=network.status
+  get_viewport().gui_release_focus())
  var leave := Button.new()
  leave.text = "Отключиться"
  panel.add_child(leave)
- leave.pressed.connect(func(): network.stop(); get_viewport().gui_release_focus())
+ leave.pressed.connect(func():
+  await network.stop()
+  if pause_open:get_tree().paused=true
+  network_status.text=network.status
+  get_viewport().gui_release_focus())
  var status_label := Label.new()
  status_label.position = Vector2(14, 508)
  $HUD.add_child(status_label)
  network_status = status_label
 
+var network_row:HBoxContainer
 var network_status: Label
 
 func _physics_process(_delta: float) -> void:
@@ -234,6 +259,7 @@ func _physics_process(_delta: float) -> void:
  if not is_instance_valid(player):
   return
  var typing := get_viewport().gui_get_focus_owner() is LineEdit or ui_blocked()
+ network.block_local(not typing and not inventory_ui.opened and Input.is_physical_key_pressed(KEY_R))
  var axis := 0.0 if typing else Input.get_axis("move_left", "move_right")
  var jump := not typing and Input.is_action_just_pressed("jump")
  if network.active:
@@ -262,6 +288,9 @@ func ui_blocked() -> bool:
  return pause_open or input_latched or (is_instance_valid(npcs) and npcs.opened)
 
 func _process(delta: float) -> void:
+ if is_instance_valid(saves) and is_instance_valid(saves.save_button):saves.save_button.get_parent().hide();saves.save_label.hide()
+ if is_instance_valid(network_row):network_row.visible=pause_open and not has_meta("combat_test")
+ if pause_open and not network.active and not network.stopping:get_tree().paused=true
  if input_latched and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT): input_latched=false
  fps_clock += delta
  if fps_clock >= 0.5:
@@ -311,7 +340,7 @@ func _arena_button() -> void:
  var button := Button.new()
  button.text = "Проверка боя"
  button.tooltip_text = "Сохранить свой мир и открыть отдельную временную арену"
- button.position = Vector2(708,164)
+ button.position = Vector2(790,106)
  button.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  button.focus_mode = Control.FOCUS_NONE
  $HUD.add_child(button)

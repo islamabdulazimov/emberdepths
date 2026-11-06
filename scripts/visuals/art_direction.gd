@@ -27,6 +27,9 @@ static func panel(color: Color = INK, edge: Color = SLATE) -> StyleBoxFlat:
  box.bg_color = color
  box.border_color = edge
  box.set_border_width_all(1)
+ box.shadow_color=Color(0.02,0.04,0.07,0.6)
+ box.shadow_size=2
+ box.shadow_offset=Vector2(0,2)
  box.content_margin_left = 5
  box.content_margin_right = 5
  box.content_margin_top = 3
@@ -35,8 +38,13 @@ static func panel(color: Color = INK, edge: Color = SLATE) -> StyleBoxFlat:
 
 static func theme() -> Theme:
  var result := Theme.new()
- result.default_font_size = 13
- result.set_stylebox("panel","PanelContainer",panel(Color(0.09,0.14,0.18,0.96)))
+ var font:=preload("res://assets/recast/DejaVuSansMono.ttf")
+ font.antialiasing=TextServer.FONT_ANTIALIASING_NONE
+ result.default_font=font
+ result.default_font_size = 12
+ var skin:=StyleBoxTexture.new();skin.texture=preload("res://assets/recast/ui_panel.png")
+ for side in [SIDE_LEFT,SIDE_TOP,SIDE_RIGHT,SIDE_BOTTOM]:skin.set_texture_margin(side,5);skin.set_content_margin(side,8)
+ result.set_stylebox("panel","PanelContainer",skin)
  for state in ["normal","hover","pressed","disabled","focus"]:
   var color := INK if state == "normal" else SHADOW
   var edge := COPPER if state in ["hover","focus"] else SLATE

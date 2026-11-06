@@ -8,7 +8,7 @@ var poise_bar: ProgressBar
 
 func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
- position = Vector2(230, 190)
+ position = Vector2(230,245 if is_instance_valid(main) and main.has_meta("combat_test") else 397)
  title = Label.new()
  title.size = Vector2(500, 20)
  title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
