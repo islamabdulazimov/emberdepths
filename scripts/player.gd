@@ -88,6 +88,7 @@ func submit_command(axis: float, jump: bool) -> void:
  jump_command = jump
 
 func _physics_process(delta: float) -> void:
+ if get_meta("attempt_paused",false):return
  if dead:
   velocity.x=move_toward(velocity.x,0,1000*delta)
   velocity.y=minf(600,velocity.y+GRAVITY*delta)
@@ -158,6 +159,7 @@ func presentation_grounded() -> bool:
  return false
 
 func _process(delta: float) -> void:
+ if get_meta("attempt_paused",false):return
  if revive_immunity>0 and not dead:
   trail_clock+=delta
   if trail_clock>=.06:

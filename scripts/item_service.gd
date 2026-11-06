@@ -140,7 +140,7 @@ func _physics_process(delta: float) -> void:
   var candidates: Array = main.get_node("Players").get_children()
   candidates.sort_custom(func(a, b): return a.position.distance_squared_to(drop.position) < b.position.distance_squared_to(drop.position))
   for body in candidates:
-   if body.dead:
+   if int(str(body.name))<0 or body.dead:
     continue
    if (body.position + Vector2(0, -4)).distance_to(drop.position) > PICKUP_RADIUS:
     continue

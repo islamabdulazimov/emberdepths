@@ -217,8 +217,8 @@ func _capture_peer(peer_id: int) -> void:
 func authorize(id: String, key: String) -> String:
  if not Schema.hex_id(id, 32) or not Schema.hex_id(key, 64):
   return "Неверный профиль"
- if peer_profiles.values().has(id):
-  return "Этот персонаж уже в игре. Для второго окна используйте другой --profile"
+ for peer in peer_profiles:
+  if peer>0 and peer_profiles[peer]==id:return "Этот персонаж уже в игре. Для второго окна используйте другой --profile"
  if profiles.has(id) and profiles[id].key_hash != key.sha256_text():
   return "Ключ персонажа не совпадает"
  if not profiles.has(id) and profiles.size() >= 64:

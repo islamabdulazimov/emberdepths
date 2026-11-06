@@ -25,6 +25,12 @@ func begin(definition: Dictionary, players: int) -> bool:
  active = true
  return true
 
+func admit(players:int) -> void:
+ # Explicit entry is the only path that changes a running boss's health scale.
+ scaling_players=maxi(scaling_players,clampi(players,1,4))
+ max_health=Rules.scaled_health(base_health,scaling_players)
+ health=max_health
+
 func snapshot() -> Dictionary:
  return {"name": boss_name, "base_health": base_health, "max_health": max_health, "health": health, "max_poise": max_poise, "poise": poise, "show_poise": show_poise, "players": scaling_players, "active": active}
 

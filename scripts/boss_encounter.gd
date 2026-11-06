@@ -17,6 +17,9 @@ const Summon = preload("res://data/boss_attempts.gd")
 var journal = Attempt.new()
 var choices:Dictionary={}
 var starting:=false
+var returns:RefCounted
+var return_sync:=0.0
+var ending:=false
 var living_participants: Dictionary = {}
 var withdrawn:Dictionary={}
 func withdraw(profile:String) -> void:
@@ -24,6 +27,7 @@ func withdraw(profile:String) -> void:
 
 func _ready() -> void:
  main = get_parent()
+ returns=preload("res://scripts/boss_return.gd").new(self)
  main.combat.player_changed.connect(_player_changed)
 
 func authoritative() -> bool:
@@ -51,7 +55,7 @@ func register_kill(kind: String) -> void:
  kills += 1
 
 func can_damage(profile:String) -> bool:
- return not withdrawn.has(profile) and (journal.last.get("status","")!="active" or profile in journal.last.participants)
+ return not withdrawn.has(profile) and (journal.last.get("status","")!="active" or (profile in journal.last.participants and not returns.waiting.has(profile)))
 
 func arena_bounds() -> Rect2i:
  var c:Vector2i=main.world.cell_at(journal.altar)
@@ -85,10 +89,11 @@ func ensure_altar() -> void:
 func near_altar(body:CharacterBody2D) -> bool:
  return body!=null and not body.dead and journal.altar!=Vector2.ZERO and body.position.distance_to(journal.altar)<=Summon.REACH and main.combat.line_clear(body.position+Vector2(0,-6),journal.altar+Vector2(0,-14))
 
-func choose(peer:int,action:String) -> String:
+func choose(peer:int,action:String,attempt_id:String="") -> String:
  if not authoritative():return "Решает хост"
  var body=main.get_node("Players").get_node_or_null(str(peer))
  if body==null or body.profile_id.is_empty():return "Игрок не найден"
+ if action=="enter":return enter_attempt(peer,attempt_id)
  if is_instance_valid(actor) or starting:return "Бой уже идёт"
  if action not in ["join","skip","ready","start"]:return "Неизвестное действие"
  if not near_altar(body):return "Подойди к алтарю"
@@ -134,17 +139,39 @@ func start_attempt(peer:int) -> String:
   notice="Призыв отменён: не удалось записать сохранение";publish();return notice
  starting=false;choices.clear()
  for body in main.get_node("Players").get_children():
-  if not body.profile_id in profiles:withdrawn[body.profile_id]=true
+  if not body.profile_id in profiles:returns.waiting[body.profile_id]=true
  main.items.inventory_changed.emit(peer)
  if is_instance_valid(main.boss_ui):main.boss_ui.bind_boss(state)
  publish();return ""
 
 func exclude_unlisted(profile:String) -> void:
  if journal.last.get("status","")=="active" and not profile in journal.last.participants:
-  withdrawn[profile]=true;publish()
+  returns.waiting[profile]=true;publish()
+
+func enter_attempt(peer:int,attempt_id:String) -> String:
+ if not authoritative() or not is_instance_valid(actor) or journal.last.get("status","")!="active":return "Бой уже завершён"
+ if attempt_id!=journal.last.id:return "Попытка изменилась: открой предупреждение заново"
+ var body=main.get_node("Players").get_node_or_null(str(peer))
+ if body==null or body.dead:return "Упавший не может вступить без помощи"
+ if withdrawn.has(body.profile_id):return "После выбора возрождения вернуться в эту попытку нельзя"
+ if not returns.needs_entry(body.profile_id):return "Вы уже участвуете: повторный запрос ничего не меняет"
+ if not returns.near_entry(body):return "Подойди ко входу на арену"
+ if not body.profile_id in journal.last.participants and journal.last.participants.size()>=4:return "В этой попытке уже четыре участника"
+ var at:Vector2=main.world.safe_spawn_position(main.combat_zone.bounds.position.x+2)
+ if not main.combat_zone.bounds.has_point(main.world.cell_at(at)):return "Вход занят: подготовь свободное место внутри арены"
+ if not main.saves.can_save() or main.saves.write_blocked:return "Вход отменён: сохранение недоступно"
+ var before:Dictionary=journal.snapshot();var health:Dictionary=state.snapshot()
+ if not body.profile_id in journal.last.participants:journal.last.participants.append(body.profile_id)
+ state.admit(journal.last.participants.size())
+ if not main.saves.save_now():journal.apply(before);state.apply(health);return "Вход отменён: не удалось записать попытку"
+ returns.waiting.erase(body.profile_id);returns.offline.erase(body.profile_id)
+ body.position=at;body.life_revision+=1;body.reset_physics_interpolation()
+ living_participants[peer]=true
+ returns.refresh_pause()
+ main.combat.player_changed.emit(peer,main.combat.player_data(body));publish();return ""
 
 func restore_journal(data:Dictionary) -> void:
- journal.apply(data,true);choices.clear();ensure_altar();publish()
+ returns.clear();journal.apply(data,true);choices.clear();ensure_altar();publish()
 
 func persistent_data() -> Dictionary:return journal.snapshot()
 
@@ -206,8 +233,11 @@ func _player_changed(id: int, data: Dictionary) -> void:
   if alive_players().is_empty():end_fight("player_died")
 
 func end_fight(reason: String) -> void:
+ if ending:return
+ ending=true
  var durable:bool=journal.last.get("status","")=="active"
  if durable:journal.last.status=reason if reason in ["defeated","player_died","no_players","loaded"] else "interrupted"
+ returns.clear()
  main.combat_zone.unlock()
  if state != null: state.active = false
  if is_instance_valid(actor):
@@ -228,6 +258,7 @@ func end_fight(reason: String) -> void:
  else: notice = "Бой завершён · повторный призыв у алтаря"
  if is_instance_valid(main.boss_ui): main.boss_ui.unbind_boss()
  if durable and reason not in ["loaded","new_world"]:main.saves.checkpoint()
+ ending=false
  publish()
 
 func cancel_for_load() -> void:
@@ -239,12 +270,16 @@ func reset_run() -> void:
  kills = 0
  used_once = false
  pending = false
- journal=Attempt.new();choices.clear()
+ returns.clear();journal=Attempt.new();choices.clear()
  notice = "Andrew · призыв у алтаря"
  publish()
 
 func _physics_process(delta: float) -> void:
  if not authoritative() or not enabled: return
+ returns.tick(delta)
+ return_sync+=delta
+ if return_sync>=1 and is_instance_valid(actor) and not returns.offline.is_empty():return_sync=0;publish()
+ if is_instance_valid(actor) and returns.paused:return
  if is_instance_valid(actor):
   var alive := alive_players()
   if alive.is_empty():
@@ -258,11 +293,12 @@ func _physics_process(delta: float) -> void:
    try_spawn()
 
 func snapshot() -> Dictionary:
- return {"attempt":journal.snapshot(),"choices":choices.duplicate(true),"withdrawn":withdrawn.duplicate(),"kills": kills, "used": used_once, "pending": pending, "notice": notice, "boss": actor.snapshot() if is_instance_valid(actor) else {},"zone":main.combat_zone.snapshot()}
+ return {"returns":returns.snapshot(),"attempt":journal.snapshot(),"choices":choices.duplicate(true),"withdrawn":withdrawn.duplicate(),"kills": kills, "used": used_once, "pending": pending, "notice": notice, "boss": actor.snapshot() if is_instance_valid(actor) else {},"zone":main.combat_zone.snapshot()}
 
 func apply(data: Dictionary) -> void:
  journal.apply(data.get("attempt",{}));choices=data.get("choices",{}).duplicate(true)
  withdrawn=data.get("withdrawn",{}).duplicate()
+ returns.apply(data.get("returns",{}))
  main.combat_zone.apply(data.get("zone",{}))
  kills = data.kills
  used_once = data.used

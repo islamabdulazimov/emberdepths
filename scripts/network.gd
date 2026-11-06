@@ -100,6 +100,7 @@ func stop(message: String = "Одиночная игра") -> void:
  var was_host := active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server()
  var can_notify := active and connected and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
  if was_host:
+  if is_instance_valid(main.encounter.actor):main.encounter.end_fight("interrupted")
   for peer_id in main.saves.peer_profiles.keys():
    if peer_id != 1:
     main.saves.detach_peer(peer_id)
@@ -153,10 +154,11 @@ func _peer_joined(id: int) -> void:
   pending[id] = Time.get_ticks_msec()
 
 func _admit_peer(id: int, profile_id: String, key: String) -> void:
- var existing := main.get_node("Players").get_children()
- main.add_player(id, main.world.safe_spawn_position(main.world.world_width / 2 + existing.size()))
- var selected: int = main.saves.attach_peer(id, profile_id, key)
- main.encounter.exclude_unlisted(profile_id)
+ var reclaimed:bool=main.encounter.returns.reclaim(id,profile_id)
+ if not reclaimed:main.add_player(id,main.world.safe_spawn_position(main.world.world_width/2+main.combat.connected_player_count()))
+ var selected:int=int(main.saves.profiles[profile_id].get("selected",0)) if reclaimed else main.saves.attach_peer(id,profile_id,key)
+ main.encounter.returns.admitted(id,profile_id,reclaimed)
+ var existing:=main.get_node("Players").get_children()
  peer_admitted.emit(id)
  var roster: Dictionary = {}
  for body in main.get_node("Players").get_children():
@@ -167,8 +169,9 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot(), main.storage.objects_snapshot(),main.world.generator_version,main.world.npc_records)
  for body in existing:
   var old_id := int(str(body.name))
-  if old_id != 1:
-   _send(old_id, "spawn_remote", [id, roster[id]])
+  if old_id != 1 and old_id!=id:
+   _send(old_id,"spawn_remote",[id,roster[id]])
+   _send(old_id,"sync_life",[id,main.combat.player_data(main.get_node("Players").get_node(str(id)))])
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func request_leave() -> void:
@@ -191,8 +194,9 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  var leaving=main.get_node("Players").get_node_or_null(str(id))
  if leaving!=null:main.encounter.choices.erase(leaving.profile_id)
  if active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server():
-  main.saves.detach_peer(id)
-  _broadcast("despawn_remote", [id])
+  if not main.encounter.returns.retain_body(id):
+   main.saves.detach_peer(id)
+   _broadcast("despawn_remote",[id])
  main.remove_player(id)
  commands.erase(id)
  mining.erase(id)
@@ -232,12 +236,12 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
  connected = true
  if not GameApp.selected_character.is_empty(): main.player.appearance=preload("res://data/appearance.gd").clean(GameApp.selected_character.appearance)
  request_appearance.rpc_id(1,main.player.appearance)
- status = "Подключён · игроков: %d/4" % roster.size()
+ status = "Подключён · игроков: %d/4" % main.combat.connected_player_count()
 
 @rpc("authority", "call_remote", "reliable", 0)
 func spawn_remote(id: int, position_value: Vector2) -> void:
  main.add_player(id, position_value)
- status = "Подключён · игроков: %d/4" % main.get_node("Players").get_child_count()
+ status = "Подключён · игроков: %d/4" % main.combat.connected_player_count()
 
 func submit_local(axis: float, jump: bool, cell: Vector2i, mode: int, slot: int, delta: float) -> void:
  if not active or not connected:
@@ -686,17 +690,17 @@ func request_respawn() -> void:
  if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.survival.respawn_request(id)
 
 
-func altar_local(action:String) -> void:
- if not active or (connected and multiplayer.is_server()):main.altar.feedback=main.encounter.choose(int(str(main.player.name)),action)
- elif connected:request_altar.rpc_id(1,action)
+func altar_local(action:String,attempt_id:String="") -> void:
+ if not active or (connected and multiplayer.is_server()):main.altar.feedback=main.encounter.choose(int(str(main.player.name)),action,attempt_id)
+ elif connected:request_altar.rpc_id(1,action,attempt_id)
 @rpc("any_peer","call_remote","reliable",0)
-func request_altar(action:String) -> void:
+func request_altar(action:String,attempt_id:String="") -> void:
  var id:=multiplayer.get_remote_sender_id()
  if not multiplayer.is_server() or not main.saves.peer_profiles.has(id):return
  var now:=Time.get_ticks_msec()
  if now-int(altar_requests.get(id,-1000))<150:return
  altar_requests[id]=now
- var result:String=main.encounter.choose(id,action)
+ var result:String=main.encounter.choose(id,action,attempt_id)
  altar_result.rpc_id(id,result)
 @rpc("authority","call_remote","reliable",0)
 func altar_result(message:String) -> void:main.altar.feedback=message

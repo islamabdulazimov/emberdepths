@@ -95,7 +95,7 @@ func intent(id:int,target:int,held:bool) -> void:
  if not main.combat.authoritative():return
  if not held:intents.erase(id);cancel_helper(id);return
  var p=player(id);var t=player(target)
- if id==target or p==null or t==null or p.dead or not t.dead:return
+ if id==target or p==null or t==null or t.get_meta("attempt_paused",false) or p.dead or not t.dead:return
  intents[id]={"target":target,"until":Time.get_ticks_msec()+Rules.INTENT_TIMEOUT_MS}
 func cancel_target(target:int) -> void:
  if not channels.has(target):return
@@ -144,7 +144,7 @@ func tick_coins(delta:float) -> void:
   if c.age<Rules.PICKUP_DELAY:continue
   var recipient:Node2D=null
   for p in main.get_node("Players").get_children():
-   if not p.dead and p.money<Rules.MAX_MONEY and p.position.distance_to(c.position)<Rules.PICKUP_RADIUS and main.combat.line_clear(p.position+Vector2(0,-5),c.position):recipient=p;break
+   if int(str(p.name))>0 and not p.dead and p.money<Rules.MAX_MONEY and p.position.distance_to(c.position)<Rules.PICKUP_RADIUS and main.combat.line_clear(p.position+Vector2(0,-5),c.position):recipient=p;break
   if recipient==null:
    for mob in main.combat.entities.values():
     if mob.kind!="spirit" and mob.money<Rules.MAX_MONEY and mob.position.distance_to(c.position)<Rules.PICKUP_RADIUS and main.combat.line_clear(mob.position+Vector2(0,-5),c.position):recipient=mob;break
@@ -160,7 +160,7 @@ func _physics_process(delta:float) -> void:
  tick_help(delta);tick_coins(delta)
  for id in recovery_dirty.keys():recover_inventory(id)
  for p in main.get_node("Players").get_children():
-  if not p.dead and main.combat_zone.active and main.encounter.withdrawn.has(p.profile_id) and main.combat_zone.contains_body(p):
+  if not p.dead and main.combat_zone.active and not main.encounter.can_damage(p.profile_id) and main.combat_zone.contains_body(p):
    p.position=main.world.safe_spawn_position(maxi(2,main.combat_zone.bounds.position.x-4));p.velocity=Vector2.ZERO;p.life_revision+=1;main.combat.player_changed.emit(int(str(p.name)),main.combat.player_data(p))
 func nearest_downed() -> int:
  if not is_instance_valid(main.player) or main.player.dead:return 0
@@ -217,4 +217,4 @@ func cycle_watch() -> void:
  for p in main.get_node("Players").get_children():
   if p!=main.player:ids.append(int(str(p.name)))
  if ids.is_empty():watching=0;observe.text="Других игроков нет";return
- watching=ids[(ids.find(watching)+1)%ids.size()];observe.text="Наблюдение: игрок %d"%watching
+ watching=ids[(ids.find(watching)+1)%ids.size()];observe.text="Наблюдение: отключившийся товарищ" if watching<0 else "Наблюдение: игрок %d"%watching

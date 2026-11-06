@@ -6,9 +6,13 @@ var feedback:=""
 var layer:CanvasLayer
 var panel:PanelContainer
 var prompt:Label
+var title:Label
 var detail:Label
 var result:Label
 var buttons:Array=[]
+var enter_button:Button
+var entry_mode:=false
+var entry_attempt:=""
 func _ready() -> void:
  main=get_parent();z_index=3
  layer=CanvasLayer.new();layer.layer=9;add_child(layer)
@@ -18,40 +22,68 @@ func _ready() -> void:
  prompt=Label.new();prompt.mouse_filter=Control.MOUSE_FILTER_IGNORE;prompt.add_theme_font_size_override("font_size",12);prompt.add_theme_color_override("font_outline_color",Color("18252e"));prompt.add_theme_constant_override("outline_size",3);layer.add_child(prompt)
  panel=PanelContainer.new();panel.theme=preload("res://scripts/visuals/art_direction.gd").theme();panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER);panel.offset_left=-270;panel.offset_right=270;panel.offset_top=-190;panel.offset_bottom=190;layer.add_child(panel);panel.hide()
  var box:=VBoxContainer.new();box.add_theme_constant_override("separation",8);panel.add_child(box)
- var title:=Label.new();title.text="АЛТАРЬ ВЫЗОВА · ANDREW";title.add_theme_font_size_override("font_size",20);box.add_child(title)
+ title=Label.new();title.text="АЛТАРЬ ВЫЗОВА · ANDREW";title.add_theme_font_size_override("font_size",20);box.add_child(title)
  detail=Label.new();detail.custom_minimum_size=Vector2(510,170);detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;detail.add_theme_font_size_override("font_size",13);box.add_child(detail)
  var row:=HBoxContainer.new();box.add_child(row)
  for entry in [["Участвую","join"],["Пропускаю","skip"],["Готов","ready"]]:
   var button:=Button.new();button.text=entry[0];button.add_theme_font_size_override("font_size",13);row.add_child(button);buttons.append(button);button.pressed.connect(func():main.network.altar_local(entry[1]))
  var summon:=Button.new();summon.text="Призвать · один вызов на команду";summon.pressed.connect(func():main.network.altar_local("start"));box.add_child(summon);buttons.append(summon)
+ enter_button=Button.new();enter_button.text="Вступить · восстановить ОЗ босса";enter_button.add_theme_font_size_override("font_size",13);enter_button.pressed.connect(func():main.network.altar_local("enter",entry_attempt));box.add_child(enter_button);enter_button.hide()
  result=Label.new();result.custom_minimum_size.y=30;result.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;result.add_theme_font_size_override("font_size",12);box.add_child(result)
  var close:=Button.new();close.text="Закрыть · E / Esc";close.pressed.connect(close_panel);box.add_child(close)
 func close_panel() -> void:
  opened=false;panel.hide();main.input_latched=true
 func open_panel() -> bool:
- if is_instance_valid(main.encounter.actor) or not main.encounter.near_altar(main.player) or main.pause_open or main.inventory_ui.opened or main.npcs.opened:return false
+ var encounter=main.encounter
+ if main.player.dead or main.pause_open or main.inventory_ui.opened or main.npcs.opened:return false
+ entry_mode=is_instance_valid(encounter.actor)
+ if entry_mode:
+  if not encounter.returns.near_entry(main.player) or (encounter.can_damage(main.player.profile_id) and not encounter.withdrawn.has(main.player.profile_id)):return false
+  entry_attempt=encounter.journal.last.get("id","")
+ elif not encounter.near_altar(main.player):return false
  opened=true;feedback="";panel.show();main.input_latched=true;refresh();return true
 func refresh() -> void:
  var encounter=main.encounter;var journal=encounter.journal
+ title.text="ВХОД НА АРЕНУ · ANDREW" if entry_mode else "АЛТАРЬ ВЫЗОВА · ANDREW"
  var text:String="Первый вызов: бесплатно для всей команды.\n" if not journal.free_used else "Нужна Печать у призывающего (8 камня, 4 дерева, 2 искрокамня).\n"
  text+="Участники: выберите участие и подтвердите готовность на арене.\n"
  for body in main.get_node("Players").get_children():
   var vote:Dictionary=encounter.choices.get(body.profile_id,{})
   var state:String="наблюдатель" if vote.get("choice","")!="join" else ("готов" if vote.get("ready",false) else "не готов")
   text+="• %s — %s\n"%["Вы" if body==main.player else "Игрок "+str(body.name),state]
- if is_instance_valid(encounter.actor):text="Бой идёт. Новые участники смогут вступать на следующем подэтапе.\n"+encounter.notice
+ if entry_mode:
+  var known:bool=main.player.profile_id in journal.last.get("participants",[])
+  var count:int=mini(4,journal.last.get("participants",[]).size()+(0 if known else 1))
+  text="ВНИМАНИЕ: вступление полностью восстановит ОЗ Andrew.\n"
+  text+="После входа: %d ОЗ · участников: %d.\n"%[preload("res://data/combat_rules.gd").scaled_health(encounter.state.base_health,count),count]
+  text+="Ваши ОЗ и состояние не восстанавливаются. Повторно тот же профиль не увеличивает множитель.\n"
+  if encounter.withdrawn.has(main.player.profile_id):text="Вы выбрали возрождение и выбыли из этой попытки. Вернуться в неё нельзя."
+  elif known:text+="Возврат позже 60 с требует этого подтверждения."
+  else:text+="Вы ещё не участвовали в этой попытке. Можно отменить вход."
+  if encounter.returns.paused:text+="\nБой приостановлен, пока нет подключённых участников."
  else:text+="Не участвующие не блокируют призыв. Полоса здоровья учитывает только участников."
  detail.text=text;result.text=feedback
- for button in buttons:button.disabled=is_instance_valid(encounter.actor)
+ for button in buttons:button.visible=not entry_mode;button.disabled=is_instance_valid(encounter.actor)
+ enter_button.visible=entry_mode
+ enter_button.disabled=main.encounter.withdrawn.has(main.player.profile_id)
 func _process(_delta:float) -> void:
  if not is_instance_valid(main.player):return
  position=main.encounter.journal.altar;visible=position!=Vector2.ZERO
- var near:bool=main.encounter.near_altar(main.player)
- if opened and (not near or main.pause_open or is_instance_valid(main.encounter.actor)):close_panel()
+ var active:bool=is_instance_valid(main.encounter.actor)
+ var near:bool=main.encounter.returns.near_entry(main.player) if active else main.encounter.near_altar(main.player)
+ if opened and (not near or main.pause_open or (not entry_mode and active) or (entry_mode and (not active or main.encounter.journal.last.get("id","")!=entry_attempt or main.encounter.can_damage(main.player.profile_id)))):close_panel()
  prompt.visible=not opened and not main.player.dead and not main.pause_open and not main.inventory_ui.opened and not main.npcs.opened
  if prompt.visible:
   if is_instance_valid(main.encounter.actor):
-   prompt.text="Арена: блоки защищены на время боя";prompt.position=Vector2(14,165)
+   prompt.text="Арена: блоки защищены на время боя"
+   if main.encounter.returns.paused:prompt.text="Бой приостановлен · возврат: %d с"%ceili(main.encounter.returns.WINDOW-main.encounter.returns.absence)
+   if main.encounter.withdrawn.has(main.player.profile_id):prompt.text+=" · вы выбыли из этой попытки"
+   elif not main.encounter.can_damage(main.player.profile_id):
+    if near:prompt.text+=" · E — вход с предупреждением"
+    else:
+     var entry:Vector2=main.encounter.returns.entry_position()
+     prompt.text+=" · вход %s %d блоков"%["→" if entry.x>main.player.position.x else "←",ceili(main.player.position.distance_to(entry)/16)]
+   prompt.position=Vector2(14,165)
   elif near:
    prompt.text="Алтарь Andrew · E — подготовка";prompt.position=get_global_transform_with_canvas().origin+Vector2(-95,-74)
   else:

@@ -48,7 +48,7 @@ func enter_phase(value: String, duration: float) -> void:
  encounter.publish()
 
 func take_hit(damage: int, poise_damage: int) -> bool:
- if not encounter.authoritative() or not state.active or damage <= 0:
+ if not encounter.authoritative() or encounter.returns.paused or not state.active or damage <= 0:
   return false
  visual_hit = 0.12
  state.health = maxi(0, state.health - damage)
@@ -135,7 +135,7 @@ func _damage_players(action: String) -> void:
   if result == "hit" and action == "uppercut" and not player.dead: player.velocity.y = -220
 
 func receive_parry() -> void:
- if not encounter.authoritative() or not state.active or phase == "stunned": return
+ if not encounter.authoritative() or encounter.returns.paused or not state.active or phase == "stunned": return
  state.poise = maxi(0,state.poise-int(Battle.PARRY.boss_poise))
  velocity.x = 0
  if state.poise == 0:
@@ -160,7 +160,7 @@ func _choose_attack(target: CharacterBody2D) -> void:
  stuck_time = 0
 
 func _physics_process(delta: float) -> void:
- if not encounter.authoritative() or not state.active: return
+ if not encounter.authoritative() or encounter.returns.paused or not state.active: return
  phase_elapsed += delta
  if phase == "stunned":
   velocity = Vector2.ZERO
@@ -327,6 +327,7 @@ func emit_visual(kind: String, at: Vector2) -> void:
  if is_instance_valid(main) and is_instance_valid(main.get("effects")): main.effects.burst(kind,at)
 
 func _process(delta: float) -> void:
+ if encounter.returns.paused:return
  if not visual_facing_initialized:
   visual_facing = facing
   visual_target_facing = facing

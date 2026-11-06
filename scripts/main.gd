@@ -262,7 +262,7 @@ func _physics_process(_delta: float) -> void:
  if is_instance_valid(network_status):
   network_status.text = network.status
   if network.active and network.connected:
-   network_status.text += " · В мире: %d/4" % $Players.get_child_count()
+   network_status.text += " · В мире: %d/4" % combat.connected_player_count()
  if not is_instance_valid(player):
   return
  var typing := get_viewport().gui_get_focus_owner() is LineEdit or ui_blocked()

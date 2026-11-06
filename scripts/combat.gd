@@ -196,7 +196,7 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  if not authoritative() or amount <= 0:
   return false
  var body = main.get_node("Players").get_node_or_null(str(id))
- if body == null or body.dead or body.revive_immunity>0 or ((body.hurt_immunity > 0.0 or body.fighter.roll_invulnerable()) and not bypass_immunity):
+ if body == null or body.get_meta("attempt_paused",false) or body.dead or body.revive_immunity>0 or ((body.hurt_immunity > 0.0 or body.fighter.roll_invulnerable()) and not bypass_immunity):
   return false
  main.survival.cancel_helper(id)
  main.equipment_service.finish_block(body)
@@ -389,6 +389,7 @@ func _physics_process(delta: float) -> void:
   return
  var alive: Array = []
  for body in main.get_node("Players").get_children():
+  if body.get_meta("attempt_paused",false):continue
   body.hurt_immunity = maxf(0.0, body.hurt_immunity - delta)
   var revival_cooling:bool=body.revive_immunity>0
   body.revive_immunity=maxf(0,body.revive_immunity-delta)
@@ -567,7 +568,10 @@ func _process(delta: float) -> void:
 func connected_player_count() -> int:
  # Registered bodies remain in Players during death/respawn; pending peers
  # and disconnected/offline profile records are not included.
- return clampi(main.get_node("Players").get_child_count(), 1, 4)
+ var count:=0
+ for p in main.get_node("Players").get_children():
+  if int(str(p.name))>0:count+=1
+ return clampi(count,1,4)
 
 func heal_player(id: int, amount: int) -> int:
  if not authoritative(): return 0
