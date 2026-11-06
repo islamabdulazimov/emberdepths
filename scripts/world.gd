@@ -7,6 +7,9 @@ var door_cells: Dictionary = {} # All occupied cells -> bottom cell.
 @export var world_seed: int = 72419
 @export var world_width: int = 192
 @export var world_depth: int = 72
+var generator_version := 1
+var sites: Array = []
+var site_progress: Dictionary = {}
 var solid: TileMapLayer
 var walls: TileMapLayer
 var wall_changes: Dictionary = {}
@@ -19,7 +22,22 @@ var detail: Node2D
 var forest: Node2D
 
 func _ready() -> void:
+ if (not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--expanded-world")) and not get_parent().has_meta("combat_test"):
+  configure_expanded()
  generate()
+func configure_expanded() -> void:
+ generator_version = 2
+ world_width = preload("res://data/world_regions.gd").WIDTH
+ world_depth = preload("res://data/world_regions.gd").DEPTH
+func region_at(cell: Vector2i) -> String:
+ return preload("res://data/world_regions.gd").at(self,cell)
+
+
+func describe_location(cell: Vector2i) -> String:
+ var label: String = preload("res://data/world_regions.gd").NAMES[region_at(cell)]
+ for site in sites:
+  if site.rect.has_point(cell): return label+" · "+preload("res://data/exploration_sites.gd").NAMES[site.kind]
+ return label
 
 func generate() -> void:
  var effects = get_parent().get("effects")
@@ -57,38 +75,46 @@ func generate() -> void:
    tile.set_collision_polygons_count(0, 1)
    tile.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-8,-8), Vector2(8,-8), Vector2(8,8), Vector2(-8,8)]))
  walls = TileMapLayer.new()
+ # Native retained 16x16 render quadrants are culled by TileMapLayer.
+ walls.rendering_quadrant_size = 16
  walls.name = "BackgroundWalls"
  walls.tile_set = tiles
  walls.collision_enabled = false
  walls.modulate = Color(0.38, 0.40, 0.49)
  add_child(walls)
  solid = TileMapLayer.new()
+ solid.rendering_quadrant_size = 16
  solid.name = "SolidBlocks"
  solid.tile_set = tiles
  add_child(solid)
- var surface := FastNoiseLite.new()
- surface.seed = world_seed
- surface.frequency = 0.035
- var caves := FastNoiseLite.new()
- caves.seed = world_seed + 1
- caves.frequency = 0.075
- for x in range(world_width):
-  var top := 22 + roundi(surface.get_noise_1d(x) * 9.0)
-  # A safe, flat landing area for up to four future players.
-  if absi(x - world_width / 2) < 8:
-   top = 22
-  heights.append(top)
-  for y in range(top, world_depth):
-   var id: int = Blocks.GRASS if y == top else (Blocks.DIRT if y < top + 6 else Blocks.STONE)
-   # Small fuel deposits reachable during the first descent.
-   if y >= top + 3 and y < world_depth - 2 and posmod(x * 31 + y * 17 + world_seed, 47) < 3:
-    id = Blocks.EMBERSTONE
-   if x == world_width / 2 + 3 and y in [25, 26]:
-    id = Blocks.EMBERSTONE
-   walls.set_cell(Vector2i(x, y), 0, Vector2i(2, 0))
-   var is_cave := y > top + 7 and y < world_depth - 2 and absf(caves.get_noise_2d(x, y)) < 0.105
-   if not is_cave:
-    solid.set_cell(Vector2i(x, y), int(Blocks.DEFINITIONS[id].get("source", 0)), Blocks.DEFINITIONS[id].atlas)
+ sites.clear()
+ site_progress.clear()
+ if generator_version == 2:
+  sites = preload("res://scripts/world_expansion.gd").generate(self)
+ else:
+  var surface := FastNoiseLite.new()
+  surface.seed = world_seed
+  surface.frequency = 0.035
+  var caves := FastNoiseLite.new()
+  caves.seed = world_seed + 1
+  caves.frequency = 0.075
+  for x in range(world_width):
+   var top := 22 + roundi(surface.get_noise_1d(x) * 9.0)
+   # A safe, flat landing area for up to four future players.
+   if absi(x - world_width / 2) < 8:
+    top = 22
+   heights.append(top)
+   for y in range(top, world_depth):
+    var id: int = Blocks.GRASS if y == top else (Blocks.DIRT if y < top + 6 else Blocks.STONE)
+    # Small fuel deposits reachable during the first descent.
+    if y >= top + 3 and y < world_depth - 2 and posmod(x * 31 + y * 17 + world_seed, 47) < 3:
+     id = Blocks.EMBERSTONE
+    if x == world_width / 2 + 3 and y in [25, 26]:
+     id = Blocks.EMBERSTONE
+    walls.set_cell(Vector2i(x, y), 0, Vector2i(2, 0))
+    var is_cave := y > top + 7 and y < world_depth - 2 and absf(caves.get_noise_2d(x, y)) < 0.105
+    if not is_cave:
+     solid.set_cell(Vector2i(x, y), int(Blocks.DEFINITIONS[id].get("source", 0)), Blocks.DEFINITIONS[id].atlas)
  solid.update_internals()
  trees = Trees.generate(self)
  if is_instance_valid(forest): forest.falling.clear()

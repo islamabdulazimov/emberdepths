@@ -1,4 +1,11 @@
 extends CharacterBody2D
+const Creatures = preload("res://data/creatures.gd")
+const Actions = preload("res://scripts/creature_actions.gd")
+var attack_target := Vector2.ZERO
+var site_guard := false
+var hum: AudioStreamPlayer2D
+var audio_state := "chase"
+
 var kind := "ashling"
 var health := 45
 var max_health := 45
@@ -24,19 +31,31 @@ func _ready() -> void:
  collision_mask = 0 if kind == "spirit" else 1
  var collider := CollisionShape2D.new()
  var shape := RectangleShape2D.new()
- shape.size = Vector2(14, 12)
+ shape.size = Creatures.DEFINITIONS[kind].size if Creatures.DEFINITIONS.has(kind) else Vector2(14,12)
  collider.shape = shape
- collider.position = Vector2(0, -6)
+ collider.position = Vector2(0,-shape.size.y/2)
+ collider.name = "Collision"
  add_child(collider)
  z_index = 3
+ if kind == "hollowbeak":
+  hum = AudioStreamPlayer2D.new()
+  hum.stream = preload("res://assets/audio/hollow_hum.wav")
+  hum.volume_db = -26
+  hum.max_distance = 260
+  add_child(hum)
 
 func _process(delta: float) -> void:
+ if is_instance_valid(hum) and audio_state != attack_state:
+  if attack_state == "windup": hum.play(clampf(attack_elapsed,0,0.89))
+  else: hum.stop()
+  audio_state = attack_state
  if visual_health >= 0 and health < visual_health:
   var main := get_parent().get_parent()
   if is_instance_valid(main.get("effects")): main.effects.burst("hurt",position+Vector2(0,-6))
  visual_health = health
  if not get_parent().authoritative(): attack_elapsed += delta
- var duration: float = Battle.ASHLING.windup if attack_state == "windup" else (Battle.ASHLING.active if attack_state == "active" else Battle.ASHLING.recovery)
+ var timing: Dictionary = Creatures.DEFINITIONS.get(kind,Battle.ASHLING)
+ var duration: float = timing.windup if attack_state == "windup" else (timing.active if attack_state == "active" else timing.recovery)
  var t: float = motion_track.advance(attack_state,attack_elapsed,delta,duration)/duration
  var target := 0.0
  if attack_state == "windup": target = smoothstep(0,1,t)
@@ -58,6 +77,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
  var art = preload("res://scripts/visuals/enemy_art.gd")
  if kind == "spirit": art.draw_spirit(self,clock,velocity,hurt_flash)
+ elif Creatures.DEFINITIONS.has(kind): preload("res://scripts/visuals/creature_art.gd").draw_body(self)
  else:
   art.draw_ashling(self,clock,Vector2(visual_movement,velocity.y),hurt_flash,night,visual_facing,visual_anticipation,visual_width)
   if attack_state in ["windup","active"]:
@@ -66,8 +86,9 @@ func _draw() -> void:
    draw_rect(Rect2(attack_facing*10-1,-18,3,4),color)
   if attack_state == "stagger":
    draw_line(Vector2(-3,-20),Vector2(3,-24),Color("e1dec2"),2)
- draw_rect(Rect2(-8,-23,16,2),Color("18252e"))
- draw_rect(Rect2(-8,-23,16*float(health)/max_health,2),Color("bd8058") if kind == "ashling" else Color("88aaa9"))
+ var bar_y: float = -float(Creatures.DEFINITIONS[kind].visual_height)-5 if Creatures.DEFINITIONS.has(kind) else -23.0
+ draw_rect(Rect2(-8,bar_y,16,2),Color("18252e"))
+ draw_rect(Rect2(-8,bar_y,16*float(health)/max_health,2),Color("bd8058") if kind == "ashling" else Color("88aaa9"))
 
 # Host-owned attack states; damage is confined to the active phase, never touch.
 const Battle = preload("res://data/battle.gd")
@@ -81,6 +102,10 @@ func change_attack(value: String) -> void:
  attack_state = value
  attack_elapsed = 0
  attack_hits.clear()
+ if is_instance_valid(hum):
+  if value == "windup": hum.play()
+  else: hum.stop()
+  audio_state = value
  var combat := get_parent()
  combat.entity_changed.emit(entity_id,combat.entity_data(entity_id))
 
@@ -89,9 +114,11 @@ func receive_parry() -> void:
  change_attack("stagger")
 
 func attack_area() -> Rect2:
+ if Creatures.DEFINITIONS.has(kind): return Actions.area(self)
  return Rect2(position+Vector2(1 if attack_facing > 0 else -Battle.ASHLING.reach,-22),Vector2(Battle.ASHLING.reach,25))
 
 func step_attack(delta: float, target: CharacterBody2D, combat: Node2D) -> bool:
+ if Creatures.DEFINITIONS.has(kind): return Actions.step(self,delta,target,combat)
  attack_elapsed += delta
  if attack_state == "stagger":
   velocity.x = 0
@@ -120,3 +147,8 @@ func step_attack(delta: float, target: CharacterBody2D, combat: Node2D) -> bool:
   if attack_state == "active" and attack_elapsed >= Battle.ASHLING.active: change_attack("recovery")
  elif attack_state == "recovery" and attack_elapsed >= Battle.ASHLING.recovery: change_attack("chase")
  return true
+
+func _exit_tree() -> void:
+ if is_instance_valid(hum):
+  hum.stop()
+  hum.stream = null

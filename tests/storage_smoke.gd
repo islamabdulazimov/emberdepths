@@ -122,7 +122,7 @@ func run() -> void:
  main.saves.save_path = "user://tests/storage.json"
  check_result(main.saves.save_now(),"Nonempty ordinary storage saves to disk")
  var saved: Dictionary = main.saves.capture()
- check_result(main.saves.load_now() and service.at_cell(anchor).inventory.count_item("dirt") == 99 and service.viewers.is_empty() and not service.at_cell(anchor).opened,"Loading restores exact storage contents with closed lid and no stale viewers")
+ check_result(main.saves.load_now() and service.at_cell(anchor).inventory.count_item("dirt") == 99 and service.viewers.is_empty() and service.at_cell(anchor).opened,"Loading restores exact storage contents and saved lid without stale viewers")
  player = main.player
  player.set_physics_process(false)
  player.position = Vector2(1544,342)
@@ -144,6 +144,7 @@ func run() -> void:
  check_result(Schema.validate(bad) != "","Save schema rejects storage with a missing floor")
  var legacy := saved.duplicate(true)
  legacy.world.erase("storage")
+ legacy.world.erase("storage_opened")
  check_result(main.saves.restore(legacy) == "" and service.chests.is_empty(),"Old saves without ordinary storage load normally")
  main.saves.restore(saved)
  player = main.player

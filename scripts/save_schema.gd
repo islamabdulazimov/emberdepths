@@ -61,13 +61,22 @@ static func life(value: Variant, width: int, depth: int) -> bool:
 static func validate(value: Variant) -> String:
  if not value is Dictionary or not value.has_all(["format", "generator", "host_profile", "world", "profiles", "drops", "combat", "next_drop"]):
   return "Неполное сохранение"
- if value.format != 1 or value.generator != 1:
+ if value.format != 1 or value.generator not in [1,2]:
   return "Неподдерживаемая версия сохранения или генератора"
  var world: Variant = value.world
  if not world is Dictionary or not world.has_all(["seed", "width", "depth", "blocks", "walls", "torches"]):
   return "Неполный мир"
  if not integer(world.seed, -2147483648, 2147483647) or not integer(world.width, 32, 512) or not integer(world.depth, 32, 256):
   return "Неверные параметры мира"
+ if not world.get("sites",{}) is Dictionary or world.get("sites",{}).size() > 16: return "Неверное состояние руин"
+ for site_id in world.get("sites",{}):
+  var progress: Variant = world.sites[site_id]
+  if not site_id is String or site_id.length() > 64 or not progress is Dictionary or not progress.has_all(["initialized","guards"]) or not progress.initialized is bool or not integer(progress.guards,0,255): return "Неверный прогресс руин"
+ if not world.get("storage",{}) is Dictionary: return "Неверные сундуки хранения"
+ if not world.get("storage_opened",[]) is Array or world.get("storage_opened",[]).size() > 128: return "Неверные открытые сундуки"
+ for anchor in world.get("storage_opened",[]):
+  if not anchor is Vector2i or not world.get("storage",{}).has(anchor): return "Открытый сундук отсутствует"
+ if int(value.generator) == 2 and (int(world.width) != 384 or int(world.depth) != 160): return "Неверный размер мира генератора 2"
  var width := int(world.width)
  var depth := int(world.depth)
  if not world.blocks is Dictionary or not world.walls is Dictionary or not world.torches is Array or world.blocks.size() > width * depth or world.walls.size() > width * depth or world.torches.size() > 2048:
@@ -144,6 +153,7 @@ static func validate(value: Variant) -> String:
    return "Неполное существо"
   if not Rules.ENEMIES.has(entity.kind):
    return "Неизвестное существо"
+  if not entity.get("site_guard",false) is bool: return "Неверный страж руин"
   var raw_base: Variant = entity.get("base_health", Rules.ENEMIES[entity.kind].health)
   var raw_players: Variant = entity.get("scaling_players", 1)
   var raw_maximum: Variant = entity.get("max_health", raw_base)

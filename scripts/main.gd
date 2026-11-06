@@ -9,6 +9,7 @@ var combat: Node2D
 var encounter: Node2D
 var combat_zone: Node2D
 var effects: Node2D
+var exploration: Node
 var storage: Node2D
 var boss_ui: Control
 var saves: Node
@@ -69,6 +70,10 @@ func _ready() -> void:
  storage.name = "Storage"
  storage.set_script(preload("res://scripts/storage_service.gd"))
  add_child(storage)
+ exploration = Node.new()
+ exploration.name = "Exploration"
+ exploration.set_script(preload("res://scripts/exploration.gd"))
+ add_child(exploration)
  effects = Node2D.new()
  effects.name = "VisualEffects"
  effects.set_script(preload("res://scripts/visuals/effects.gd"))
@@ -236,7 +241,10 @@ func _process(delta: float) -> void:
  var depth: float = player.position.y / 16.0 - world.heights[column]
  var underground := clampf((depth - 2.0) / 13.0, 0.0, 1.0)
  var daylight := Daylight.sample(combat.world_time)
- ambient.color = daylight.ambient.lerp(Color("172331"), underground)
+ var cave_color := Color("172331")
+ if world.generator_version == 2:
+  cave_color = preload("res://data/world_regions.gd").AMBIENT.roots.lerp(preload("res://data/world_regions.gd").AMBIENT.deep,smoothstep(78,90,player.position.y/16.0))
+ ambient.color = daylight.ambient.lerp(cave_color,underground)
  sky.underground = underground
 
 

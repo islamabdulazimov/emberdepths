@@ -50,7 +50,7 @@ func spawn_entity(kind: String, at: Vector2, anchor: Vector2 = Vector2.ZERO) -> 
 
 func entity_data(id: int) -> Dictionary:
  var body = entities[id]
- return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun, "attack_state":body.attack_state,"attack_elapsed":body.attack_elapsed,"attack_facing":body.attack_facing}
+ return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun, "attack_target":body.attack_target,"site_guard":body.site_guard,"attack_state":body.attack_state,"attack_elapsed":body.attack_elapsed,"attack_facing":body.attack_facing}
 
 func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
  if data.is_empty():
@@ -80,6 +80,8 @@ func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
  body.position = data.position
  body.velocity = data.velocity
  body.anchor = data.anchor
+ body.attack_target = data.get("attack_target",body.position)
+ body.site_guard = bool(data.get("site_guard",false))
  body.grace = data.get("grace", 0.0)
  body.clock = data.get("clock", 0.0)
  body.hit_stun = data.get("hit_stun", 0.0)
@@ -122,7 +124,12 @@ func chest_at(cell: Vector2i) -> int:
 func enemy_at(cell: Vector2i) -> int:
  var area := Rect2(main.world.cell_center(cell) - Vector2(8, 8), Vector2(16, 16))
  for id in entities:
-  if area.intersects(Rect2(entities[id].position + Vector2(-7, -14), Vector2(14, 14))):
+  var enemy = entities[id]
+  var bounds := Rect2(enemy.position+Vector2(-7,-14),Vector2(14,14))
+  if preload("res://data/creatures.gd").DEFINITIONS.has(enemy.kind):
+   var collider: CollisionShape2D = enemy.get_node("Collision")
+   bounds = collider.global_transform*collider.shape.get_rect()
+  if area.intersects(bounds):
    return id
  return -1
 
@@ -277,9 +284,10 @@ func resolve_attack(id: int, direction: Vector2, active_strike: bool = false) ->
  for target_id in entities.keys():
   if hits.has("enemy:%d" % target_id): continue
   var enemy = entities[target_id]
-  var target: Vector2 = enemy.position + Vector2(0, -6)
+  var size: Vector2 = enemy.get_node("Collision").shape.size
+  var target: Vector2 = enemy.position + Vector2(0,-size.y/2)
   var offset := target - origin
-  if offset.length() <= float(profile.reach) + 7 and (offset.length() < 1 or offset.normalized().dot(direction) >= float(profile.get("arc_dot",0.2))) and line_clear(origin, target):
+  if offset.length() <= float(profile.reach) + size.x/2 and (offset.length() < 1 or offset.normalized().dot(direction) >= float(profile.get("arc_dot",0.2))) and line_clear(origin, target):
    hits["enemy:%d" % target_id] = true
    hit_entity(target_id, int(profile.damage), direction)
  if is_instance_valid(main.encounter.actor):
@@ -305,9 +313,11 @@ func hit_entity(id: int, damage: int, direction: Vector2) -> bool:
  if enemy.kind == "spirit":
   enemy.health = ceili(enemy.max_health / 2.0) if enemy.health == enemy.max_health else 0
  else:
+  if enemy.kind == "void_collector" and direction.x*enemy.attack_facing < 0:
+   damage = maxi(1,ceili(damage*0.5))
   enemy.health -= damage
  enemy.hurt_flash = 0.16
- if enemy.kind == "ashling" and enemy.health > 0: enemy.change_attack("recovery")
+ if enemy.kind != "spirit" and enemy.health > 0: enemy.change_attack("recovery")
  enemy.hit_stun = 0.2
  enemy.velocity.x = direction.x * 150
  if enemy.health <= 0:
@@ -406,6 +416,19 @@ func _physics_process(delta: float) -> void:
    if distance < nearest:
     nearest = distance
     target = body
+  if main.world.generator_version == 2 and nearest > 640 and enemy.kind != "spirit":
+   if nearest > 900 and not enemy.site_guard:
+    set_entity(id,{})
+    entity_changed.emit(id,{})
+    continue
+   enemy.set_process(false)
+   enemy.visible = false
+   enemy.attack_state = "chase"
+   enemy.attack_elapsed = 0
+   if is_instance_valid(enemy.hum): enemy.hum.stop()
+   continue
+  enemy.set_process(true)
+  enemy.visible = true
   if enemy.kind == "spirit":
    var destination: Vector2 = enemy.anchor + Vector2(sin(enemy.clock * 1.2) * 32, -20 + cos(enemy.clock) * 14)
    if target != null and target.position.distance_to(enemy.anchor) <= Rules.SPIRIT_RADIUS:
@@ -422,12 +445,17 @@ func _physics_process(delta: float) -> void:
    var locked: bool = enemy.step_attack(delta,target,self)
    if enemy.hit_stun <= 0 and not locked:
     enemy.velocity.x = axis * enemy_speed(enemy.kind)
-   enemy.velocity.y = minf(enemy.velocity.y + 850.0 * delta, 500.0)
+    if enemy.kind == "void_collector" and absf(axis) > 0.1: enemy.attack_facing = 1 if axis > 0 else -1
+   var flying: bool = enemy.kind == "ashweaver" and enemy.attack_state in ["windup","active"]
+   if enemy.kind == "ashweaver" and enemy.attack_state == "chase" and fmod(enemy.clock,3.0) < 1.0:
+    enemy.velocity.y = -35.0
+    flying = true
+   if not flying: enemy.velocity.y = minf(enemy.velocity.y + 850.0 * delta,500.0)
    if not locked and enemy.is_on_floor() and enemy.is_on_wall() and absf(axis) > 0.1:
     enemy.velocity.y = -225.0
    enemy.move_and_slide()
    enemy.position.x = clampf(enemy.position.x, 8, main.world.world_width * 16 - 8)
-   if enemy.position.y > main.world.world_depth * 16 + 32 or (nearest > 900 and entities.size() > 2):
+   if enemy.position.y > main.world.world_depth * 16 + 32 or (nearest > 900 and entities.size() > 2 and not enemy.site_guard):
     set_entity(id, {})
     entity_changed.emit(id, {})
     continue
@@ -446,6 +474,7 @@ func _physics_process(delta: float) -> void:
    spawn_timer = 8.0 if is_night() else 25.0
 
 func _try_spawn(alive: Array) -> bool:
+ if main.world.generator_version == 2: return main.exploration.try_spawn(alive)
  var count := 0
  for enemy in entities.values():
   if enemy.kind == "ashling":

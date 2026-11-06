@@ -52,6 +52,9 @@ func _rebuild() -> void:
    if world.block_at(cell+Vector2i.RIGHT) < 0:
     edges.rectangles.append([Rect2(at+Vector2(15,1),Vector2(1,15)),Art.INK])
    if world.block_at(cell+Vector2i.DOWN) < 0:
+    if world.generator_version == 2 and world.region_at(cell) != "surface" and h%3 == 0:
+     var tip := at+Vector2(5+h%6,20+h%5)
+     edges.lines.append([at+Vector2(5,15),tip,Art.JADE.darkened(0.1) if world.region_at(cell) == "roots" else Art.MIST.darkened(0.25)])
     edges.rectangles.append([Rect2(at+Vector2(0,15),Vector2(16,1)),Art.INK])
    if id == 2 and h%4 == 0:
     var p := at+Vector2(3+h%7,4+h%5)

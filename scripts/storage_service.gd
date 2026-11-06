@@ -63,7 +63,7 @@ func removal_status(body: CharacterBody2D, cell: Vector2i) -> String:
  var status := access_status(body,chest.anchor)
  if status != "Можно открыть сундук": return status
  if not chest.known_empty: return "Сначала опустоши сундук"
- if viewers.values().has(chest.anchor) or chest.opened: return "Сначала закрой сундук"
+ if viewers.values().has(chest.anchor): return "Сначала закрой сундук"
  return "Можно снять сундук"
 
 func remove_empty(body: CharacterBody2D, cell: Vector2i) -> bool:
@@ -186,6 +186,11 @@ func objects_snapshot() -> Dictionary:
  for anchor in chests: result[anchor] = {"empty":chests[anchor].known_empty,"opened":chests[anchor].opened}
  return result
 
+func opened_snapshot() -> Array:
+ var result: Array = []
+ for anchor in chests:
+  if chests[anchor].opened: result.append(anchor)
+ return result
 func snapshot() -> Dictionary:
  var result: Dictionary = {}
  for anchor in chests: result[anchor] = chests[anchor].inventory.to_data()

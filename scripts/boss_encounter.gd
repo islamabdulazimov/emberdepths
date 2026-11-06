@@ -60,6 +60,10 @@ func _find_spawn(players: Array) -> Variant:
     var at := Vector2(column * 16 + 8, floor_y * 16)
     for other in players:
      if at.distance_to(other.position) < 80: clear = false
+    if main.world.generator_version == 2:
+     var candidate := Rect2i(column-12,maxi(0,floor_y-10),25,16)
+     for site in main.world.sites:
+      if candidate.intersects(site.rect.grow(2)): clear = false
     if clear: return at
  return null
 

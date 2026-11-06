@@ -256,12 +256,12 @@ func capture() -> Dictionary:
  var combat: Dictionary = main.combat.snapshot(true)
  combat.players = {}
  for enemy in combat.entities.values():
-  for key in ["attack_state","attack_elapsed","attack_facing"]: enemy.erase(key)
+  for key in ["attack_state","attack_elapsed","attack_facing","attack_target"]: enemy.erase(key)
  combat["spawn_timer"] = main.combat.spawn_timer
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "generator": 1, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot()}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -296,6 +296,7 @@ func restore(state: Dictionary) -> String:
  if state.host_profile != profile_id or state.profiles[profile_id].key_hash != profile_key.sha256_text():
   return "Мир принадлежит другому локальному профилю"
  main.encounter.cancel_for_load()
+ main.world.generator_version = int(state.generator)
  main.world.world_seed = state.world.seed
  main.world.world_width = state.world.width
  main.world.world_depth = state.world.depth
@@ -310,6 +311,9 @@ func restore(state: Dictionary) -> String:
   main.world.restore_trees(state.world.trees)
  main.world.restore_doors(state.world.get("doors",{}))
  main.storage.restore(state.world.get("storage",{}))
+ main.world.site_progress = state.world.get("sites",{}).duplicate(true)
+ for anchor in state.world.get("storage_opened",[]):
+  if main.storage.chests.has(anchor): main.storage.chests[anchor].opened = true
  main.world.solid.update_internals()
  main.items.inventories.clear()
  main.items.load_drops(state.drops)
@@ -459,6 +463,8 @@ func new_world() -> void:
  # No old player/entity data may bleed into the new world.
  main.encounter.reset_run()
  profiles.clear()
+ if not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--expanded-world"):
+  main.world.configure_expanded()
  main.world.world_seed = posmod(main.world.world_seed + 1, 2147483647)
  main.world.generate()
  main.items.inventories.clear()
