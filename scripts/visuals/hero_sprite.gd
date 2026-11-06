@@ -1,5 +1,5 @@
 extends RefCounted
-static var rig:Dictionary=preload("res://assets/recast/hero_rig.gd").DATA
+static var rig:Dictionary=preload("res://assets/avatar/rig.gd").DATA
 static var textures:Dictionary={}
 static func texture(path:String) -> Texture2D:
  if not textures.has(path):textures[path]=load(path)
@@ -36,20 +36,24 @@ static func draw_actor(body:Node2D) -> void:
  var src:=Rect2(frame*64,ri*64,64,64);var dst:=Rect2(-32,-41,64,64)
  var a:Dictionary=preload("res://data/appearance.gd").clean(body.appearance)
  var bare:bool=body.visual_death_unclothed if body.dead else body.unclothed
- var path:="res://assets/recast/hero_%s_%s_%d_%s.png"%[a.gender,a.hair,a.skin,"bare" if bare else "coat"]
+ var path:="res://assets/avatar/body_%s_%s_%d_%s.png"%[a.gender,a.build,a.skin,"plain" if bare else "coat"]
  body.draw_set_transform(Vector2.ZERO,0,Vector2(face,1))
  var tint:=Color.WHITE.lerp(Color("ffd5a1"),minf(0.5,body.visual_hurt*3))
+ var hair_tint:Color=preload("res://data/appearance.gd").HAIR_COLORS[a.hair_color]*tint
+ body.draw_texture_rect_region(texture("res://assets/avatar/hair_%s_rear.png"%a.hair),dst,src,hair_tint)
  var moving_legs:bool=body.visual_grounded and absf(body.visual_speed)>6 and row in ["windup","active","recovery","mine","place","block","parry"]
  var leg_src:=Rect2(clampi(int(gait*24),0,23)*64,64+39,64,25)
  if moving_legs:
   body.draw_texture_rect_region(texture(path),Rect2(-32,-2,64,25),leg_src,tint)
   body.draw_texture_rect_region(texture(path),Rect2(-32,-41,64,41),Rect2(src.position,Vector2(64,41)),tint)
  else:body.draw_texture_rect_region(texture(path),dst,src,tint)
+ body.draw_texture_rect_region(texture("res://assets/avatar/hair_%s_front.png"%a.hair),dst,src,hair_tint)
  if not body.dead:
   for part in ["legs","body","head"]:
    if body.equipment.get(part,"")!="":
-    if moving_legs and part=="legs":body.draw_texture_rect_region(texture("res://assets/recast/armor_legs.png"),Rect2(-32,-2,64,25),leg_src,tint)
-    else:body.draw_texture_rect_region(texture("res://assets/recast/armor_%s.png"%part),dst,src,tint)
+    if moving_legs and part=="legs":body.draw_texture_rect_region(texture("res://assets/avatar/armor_%s_%s_legs.png"%[a.gender,a.build]),Rect2(-32,-2,64,25),leg_src,tint)
+    else:body.draw_texture_rect_region(texture("res://assets/avatar/armor_%s_%s_%s.png"%[a.gender,a.build,part]),dst,src,tint)
+ body.draw_texture_rect_region(texture("res://assets/avatar/arm_%s_%s_%d_%s.png"%[a.gender,a.build,a.skin,"plain" if bare else "coat"]),Rect2(-16,-25,36,40),Rect2(frame*36,ri*40,36,40),tint)
  var pose:Dictionary=rig.poses[ri][frame]
  var right:=Vector2(pose.right[0],pose.right[1]+10)
  var left:=Vector2(pose.left[0],pose.left[1]+10)
@@ -82,10 +86,13 @@ static func draw_actor(body:Node2D) -> void:
 
 static func draw_downed(body:Node2D) -> void:
  var a:Dictionary=preload("res://data/appearance.gd").clean(body.appearance)
- var frame:=int(body.visual_idle_clock*5)%12
+ var frame:=int(body.visual_death_age*5)%12
  var src:=Rect2(frame*64,0,64,64);var dst:=Rect2(-32,-41,64,64)
+ var color:Color=preload("res://data/appearance.gd").HAIR_COLORS[a.hair_color]
  body.draw_set_transform(Vector2.ZERO,0,Vector2(body.facing,1))
- body.draw_texture_rect_region(texture("res://assets/recast/downed_%s_%s_%d_%s.png"%[a.gender,a.hair,a.skin,"bare" if body.unclothed else "coat"]),dst,src)
+ body.draw_texture_rect_region(texture("res://assets/avatar/downed_hair_%s_rear.png"%a.hair),dst,src,color)
+ body.draw_texture_rect_region(texture("res://assets/avatar/downed_%s_%s_%d_%s.png"%[a.gender,a.build,a.skin,"plain" if body.unclothed else "coat"]),dst,src)
+ body.draw_texture_rect_region(texture("res://assets/avatar/downed_hair_%s_front.png"%a.hair),dst,src,color)
  for part in ["legs","body","head"]:
-  if body.equipment.get(part,"")!="":body.draw_texture_rect_region(texture("res://assets/recast/downed_armor_%s.png"%part),dst,src)
+  if body.equipment.get(part,"")!="":body.draw_texture_rect_region(texture("res://assets/avatar/downed_armor_%s_%s_%s.png"%[a.gender,a.build,part]),dst,src)
  body.draw_set_transform_matrix(Transform2D.IDENTITY)

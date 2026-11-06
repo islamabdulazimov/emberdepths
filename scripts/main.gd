@@ -182,9 +182,8 @@ func add_player(id: int, position_value: Vector2) -> void:
  body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON if body.is_physics_processing() else Node.PHYSICS_INTERPOLATION_MODE_OFF
  body.get_node("Camera2D").process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS if body.is_physics_processing() else Camera2D.CAMERA2D_PROCESS_IDLE
  body.reset_physics_interpolation()
- # Visually distinguish peers without changing their appearance or hitboxes.
- var palette := [Color.WHITE, Color("b9d9ff"), Color("f8c7a9"), Color("cebddf")]
- body.modulate = palette[($Players.get_child_count() - 1) % 4]
+ # Team membership never recolors selected skin/hair.
+ body.modulate = Color.WHITE # Selected skin and hair colors stay identical in co-op.
 
 func select_local_player(id: int) -> void:
  player = $Players.get_node(str(id))

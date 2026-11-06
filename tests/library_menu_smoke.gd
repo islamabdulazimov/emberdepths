@@ -13,7 +13,7 @@ func run() -> void:
  check(menu.page=="home","real startup home menu")
  menu.show_characters();check(menu.page=="characters" and app.characters().is_empty(),"empty character library")
  menu.show_character_creator();menu.name_input.text="   ";menu.save_character();check(menu.page=="create_character" and app.characters().is_empty(),"empty name rejected in UI")
- menu.name_input.text="Путник";menu.gender.select(1);menu.hair.select(1);menu.skin.select(4);menu.portrait.update_appearance(menu.creator_appearance());menu.save_character()
+ menu.name_input.text="Путник";menu.gender.select(1);menu.hair.select(3);menu.skin.select(4);menu.portrait.update_appearance(menu.creator_appearance());menu.save_character()
  check(menu.page=="create_world" and menu.selected.appearance.skin==4,"creator saves chosen female long hair dark skin")
  var a:Dictionary=menu.selected
  var b:Dictionary=app.create_character("Путник",{"gender":"male","hair":"short","skin":0})

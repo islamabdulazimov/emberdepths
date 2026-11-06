@@ -13,6 +13,8 @@ var name_input: LineEdit
 var gender: OptionButton
 var hair: OptionButton
 var skin: OptionButton
+var body_build:OptionButton
+var hair_color:OptionButton
 var world_size: OptionButton
 var portrait: Control
 var message: Label
@@ -73,20 +75,34 @@ func show_characters() -> void:
 func show_character_creator() -> void:
  page = "create_character"; begin("НОВЫЙ ПЕРСОНАЖ")
  name_input = LineEdit.new(); name_input.placeholder_text="Имя персонажа"; name_input.max_length=32; name_input.text=draft.get("name",""); box.add_child(name_input)
- portrait=Control.new();portrait.set_script(preload("res://scripts/ui/portrait.gd"));portrait.custom_minimum_size=Vector2(90,95);portrait.appearance=draft.get("appearance",Appearance.DEFAULT).duplicate();box.add_child(portrait)
- gender=OptionButton.new();gender.add_item("Мужчина");gender.add_item("Женщина");box.add_child(gender)
- hair=OptionButton.new();hair.add_item("Короткие волосы");hair.add_item("Длинные волосы");box.add_child(hair)
- skin=OptionButton.new()
- for title in ["Светлая кожа","Светлая тёплая кожа","Средний оттенок кожи","Смуглая кожа","Тёмная кожа"]: skin.add_item(title)
- box.add_child(skin)
- var a: Dictionary=Appearance.clean(draft.get("appearance",Appearance.DEFAULT))
- gender.select(0 if a.gender=="male" else 1);hair.select(0 if a.hair=="short" else 1);skin.select(a.skin)
- for option in [gender,hair,skin]: option.item_selected.connect(func(_i): portrait.update_appearance(creator_appearance()))
+ var row:=HBoxContainer.new();row.add_theme_constant_override("separation",12);box.add_child(row)
+ var preview:=VBoxContainer.new();preview.custom_minimum_size.x=180;preview.add_theme_constant_override("separation",4);row.add_child(preview)
+ portrait=Control.new();portrait.set_script(preload("res://scripts/ui/portrait.gd"));portrait.custom_minimum_size=Vector2(180,140);portrait.appearance=draft.get("appearance",Appearance.DEFAULT).duplicate();preview.add_child(portrait)
+ portrait.body.position=Vector2(80,105);portrait.body.scale=Vector2(3,3)
+ for entry in [["Покой","idle"],["Бег","run"],["Удар","attack"]]:
+  var action:=Button.new();action.text=entry[0];action.add_theme_font_size_override("font_size",12);action.custom_minimum_size.y=25;preview.add_child(action);action.pressed.connect(func():portrait.set_preview(entry[1]))
+ var fields:=VBoxContainer.new();fields.add_theme_constant_override("separation",4);row.add_child(fields)
+ gender=appearance_option(fields,"Модель",["Мужская","Женская"])
+ body_build=appearance_option(fields,"Телосложение",Appearance.BUILD_NAMES)
+ hair=appearance_option(fields,"Причёска",Appearance.HAIR_NAMES)
+ hair_color=appearance_option(fields,"Цвет волос",Appearance.HAIR_COLOR_NAMES)
+ skin=appearance_option(fields,"Кожа",["Светлая","Светлая тёплая","Средний оттенок","Смуглая","Тёмная"])
+ var a:Dictionary=Appearance.clean(draft.get("appearance",Appearance.DEFAULT))
+ gender.select(0 if a.gender=="male" else 1);body_build.select(Appearance.BUILDS.find(a.build));hair.select(Appearance.HAIRS.find(a.hair));hair_color.select(a.hair_color);skin.select(a.skin)
+ for option in [gender,body_build,hair,hair_color,skin]:option.item_selected.connect(func(_i):portrait.update_appearance(creator_appearance()))
  button("Далее — создать мир",save_character)
  button("Назад",func():
   if create_origin=="characters": show_characters()
   else: show_home())
-func creator_appearance() -> Dictionary: return {"gender":"male" if gender.selected==0 else "female","hair":"short" if hair.selected==0 else "long","skin":skin.selected}
+func appearance_option(parent:Node,title:String,choices:Array) -> OptionButton:
+ var field:=VBoxContainer.new();field.add_theme_constant_override("separation",1);parent.add_child(field)
+ var label:=Label.new();label.text=title;label.add_theme_font_size_override("font_size",11);field.add_child(label)
+ var option:=OptionButton.new();option.custom_minimum_size=Vector2(240,25);option.add_theme_font_size_override("font_size",12)
+ for value in choices:option.add_item(value)
+ field.add_child(option);return option
+func creator_appearance() -> Dictionary:
+ return {"gender":"male" if gender.selected==0 else "female","build":Appearance.BUILDS[body_build.selected],"hair":Appearance.HAIRS[hair.selected],"hair_color":hair_color.selected,"skin":skin.selected}
+
 func save_character() -> void:
  if name_input.text.strip_edges().is_empty(): message.text="Введите имя персонажа.";return
  if draft.has("id"):

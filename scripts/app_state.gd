@@ -75,7 +75,7 @@ func worlds(character_id: String) -> Array:
 func create_character(label: String, appearance: Dictionary) -> Dictionary:
  label = label.strip_edges().substr(0,32)
  if label.is_empty() or not Appearance.valid(appearance): return {}
- var item := {"id":unique_id("c","characters"),"name":label,"appearance":appearance.duplicate(true)}
+ var item := {"id":unique_id("c","characters"),"name":label,"appearance":Appearance.clean(appearance)}
  return item if write_json(ROOT+"/characters/"+item.id+".json",item) else {}
 func create_world(character: Dictionary, label: String, size: String) -> Dictionary:
  label = label.strip_edges().substr(0,40)
