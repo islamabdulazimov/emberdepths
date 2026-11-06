@@ -44,6 +44,7 @@ static func cell(value: Variant, width: int, depth: int) -> bool:
 static func life(value: Variant, width: int, depth: int) -> bool:
  if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
   return false
+ if not scalar(value.get("roll_cooldown",0),0,preload("res://data/battle.gd").ROLL.cooldown) or not scalar(value.get("guard_cooldown",0),0,preload("res://data/equipment.gd").SHIELD.recovery):return false
  if value.has("equipment") and not preload("res://data/equipment.gd").valid(value.equipment):return false
  if value.has("appearance") and not preload("res://data/appearance.gd").valid(value.appearance): return false
  if not integer(value.get("max_health", 100), 1, 1000000) or not integer(value.health, 0, int(value.get("max_health", 100))) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
@@ -63,6 +64,7 @@ static func life(value: Variant, width: int, depth: int) -> bool:
 static func validate(value: Variant) -> String:
  if not value is Dictionary or not value.has_all(["format", "generator", "host_profile", "world", "profiles", "drops", "combat", "next_drop"]):
   return "Неполное сохранение"
+ if not integer(value.get("combat_rules",1),1,2):return "Неподдерживаемые правила боя"
  if value.format != 1 or value.generator not in [1,2,3]:
   return "Неподдерживаемая версия сохранения или генератора"
  var world: Variant = value.world

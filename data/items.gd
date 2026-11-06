@@ -11,16 +11,17 @@ const DEFINITIONS := {
  "stone_axe": {"name": "Каменный топор", "kind": "axe", "stack": 1, "chop_time": 1.6, "icon": "res://assets/icons/axe.svg"},
  "wood": {"name": "Древесина", "kind": "material", "icon": "res://assets/icons/wood.svg"},
  "wood_block": {"name": "Доски", "kind": "solid", "block": 4, "icon": "res://assets/icons/planks.svg"},
- "spark_balm": {"name": "Искровой бальзам", "kind": "consumable", "stack": 20, "heal": 30, "use_time": 1.0, "cooldown": 6.0, "interrupt_delay": 0.6, "icon": "res://assets/icons/balm.svg"},
- "stone_blade": {"equip_slot":"weapon","name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": Battle.BLADE.windup+Battle.BLADE.active+Battle.BLADE.recovery, "stamina_cost": Battle.BLADE.cost, "damage": Battle.BLADE.damage, "poise_damage": Battle.BLADE.poise, "reach": Battle.BLADE.reach, "icon": "res://assets/icons/blade.svg"},
+ "spark_balm": {"name": "Искровой бальзам", "kind": "consumable", "stack": 20, "heal": 30, "use_time": 1.0, "cooldown": preload("res://data/combat_rules.gd").HEALING_COOLDOWN, "interrupt_delay": 0.6, "icon": "res://assets/icons/balm.svg"},
+ "stone_blade": {"equip_slot":"weapon","name": "Каменный клинок", "kind": "weapon", "stack": 1, "swing_time": Battle.BLADE.windup+Battle.BLADE.active+Battle.BLADE.recovery, "damage": Battle.BLADE.damage, "poise_damage": Battle.BLADE.poise, "reach": Battle.BLADE.reach, "icon": "res://assets/icons/blade.svg"},
  "torch": {"name": "Искровой факел", "kind": "torch", "icon": "res://assets/icons/torch.svg"},
  "dirt_wall": {"name": "Земляная стена", "kind": "wall", "wall": 1, "icon": "res://assets/icons/dirt_wall.svg"},
  "stone_wall": {"name": "Каменная стена", "kind": "wall", "wall": 2, "icon": "res://assets/icons/stone_wall.svg"},
  "wood_wall": {"name": "Деревянная стена", "kind": "wall", "wall": 3, "icon": "res://assets/icons/wood_wall.svg"},
  "wood_door": {"name": "Деревянная дверь", "kind": "door", "icon": "res://assets/icons/door.svg"},
  "wood_chest": {"name": "Деревянный сундук", "kind": "storage", "icon": "res://assets/icons/chest.svg"},
- "wood_sword":{"name":"Меч из корневой древесины","description":"Простой резной клинок. Лёгкий удар, малая цена ошибки.","kind":"weapon","equip_slot":"weapon","stack":1,"damage":18,"poise_damage":12,"reach":30.0,"stamina_cost":14.0,"swing_time":0.47},
- "wood_shield":{"name":"Щит из корневой древесины","description":"R: держать перед собой. Удары тратят выносливость; при истощении защита ломается.","kind":"equipment","equip_slot":"shield","stack":1,"block_percent":75,"block_stamina_factor":1.2,"block_min_stamina":8.0,"block_break_seconds":0.65},
+ "wood_sword":{"name":"Меч из корневой древесины","description":"Простой резной клинок. Лёгкий удар, малая цена ошибки.","kind":"weapon","equip_slot":"weapon","stack":1,"damage":18,"poise_damage":12,"reach":30.0,"swing_time":0.47},
+ "wood_shield":{"name":"Щит из корневой древесины","description":"R: короткий фронтальный блок. Часть урона проходит; после блока нужно восстановиться и отпустить R.","kind":"equipment","equip_slot":"shield","stack":1,"block_percent":75},
+ "traveler_knot":{"name":"Узел странника","description":"Экипируй в слот способности: Shift даёт перекат. Снятие отключает его; восстановление не сбрасывается.","kind":"equipment","equip_slot":"ability","ability":"roll","stack":1},
  "wood_helm":{"name":"Деревянный шлем","description":"Лёгкие резные пластины сохраняют обзор.","kind":"equipment","equip_slot":"head","stack":1,"armor":1},
  "wood_armor":{"name":"Деревянная кираса","description":"Скреплённая медью кора. Небольшая защита, без штрафа к движению.","kind":"equipment","equip_slot":"body","stack":1,"armor":1},
  "wood_legs":{"name":"Деревянные поножи","description":"Накладки на колени и голени. Не мешают перекату.","kind":"equipment","equip_slot":"legs","stack":1,"armor":1},
@@ -36,9 +37,10 @@ static func description(item_id:String) -> String:
  return str(definition.get("description",common.get(definition.get("kind",""),"")))
 static func stats(item_id:String) -> String:
  var d:Dictionary=DEFINITIONS.get(item_id,{})
- if d.has("damage"):return "Урон %d · стойкость %d · выносл. %d"%[d.damage,d.poise_damage,d.stamina_cost]
+ if d.has("damage"):return "Урон %d · стойкость %d · дальность %.1f блока"%[d.damage,d.poise_damage,float(d.reach)/16]
  if d.has("armor"):return "Защита +%d (снижает урон, максимум 35%%)"%d.armor
- if d.has("block_percent"):return "Поглощает %d%% · расход выносливости от удара"%d.block_percent
+ if d.has("block_percent"):return "Поглощает %d%% · блок %.2f с · восстановление %.2f с"%[d.block_percent,preload("res://data/equipment.gd").SHIELD.hold_seconds,preload("res://data/equipment.gd").SHIELD.recovery]
+ if d.get("ability","")=="roll":return "Перекат · восстановление %.1f с"%Battle.ROLL.cooldown
  return ""
 static func icon(item_id: String) -> Texture2D:
  if not DEFINITIONS.has(item_id):return null

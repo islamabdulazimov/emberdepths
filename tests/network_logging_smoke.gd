@@ -103,7 +103,7 @@ func run() -> void:
  if role in ["host","logger"]: check_result(saw_tool,"Axe animation is replicated on "+role)
  if role == "logger":
   check_result(main.items.local_inventory().count_item("wood") == record.height-2 and main.items.local_inventory().count_item("wood_block") == 3,"Host craft pickup and placement conserve exact wood quantities")
-  check_result(main.player.resources.stamina == 100,"Logging does not drain remote player's stamina")
+  check_result(not main.player.resources.snapshot().has("stamina"),"Logging does not recreate remote stamina")
   main.network.stop()
   await create_timer(0.4).timeout
   check_result(main.world.trees[0].active and main.items.local_inventory().count_item("wood") == 0,"Leaving restores own uncut forest without copying host wood")

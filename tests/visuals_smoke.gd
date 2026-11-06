@@ -75,7 +75,7 @@ func run() -> void:
   main.effects._process(1.0/60)
  player.velocity = Vector2.ZERO
  check_result(player.position == origin and player.get_node("Collision").shape.size == shape and player.scale == Vector2.ONE,"Animation never moves or scales the physics body or its collider")
- check_result(player.resources.stamina == 100 and player.health == 100 and main.combat.entities.is_empty(),"Cosmetic movement and tool strokes cannot spend resources or deal damage")
+ check_result(not player.resources.snapshot().has("stamina") and player.health == 100 and main.combat.entities.is_empty(),"Cosmetic movement and tool strokes cannot spend resources or deal damage")
  check_result(main.combat.world_time == 0,"Visual updates never advance shared gameplay time")
  check_result(main.saves.capture() == saved,"Transient poses and particles are excluded from persistent state")
  player.facing = -1

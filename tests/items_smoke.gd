@@ -67,6 +67,7 @@ func run() -> void:
  main.inventory_ui._click_slot(10)
  check_result(bag.slots[10].item == "stone" and bag.slots[10].count == 3, "Inventory UI transfers stack between selected slots")
  main.inventory_ui.toggle()
+ main._process(0) # Process released mouse before testing a fresh keyboard input.
  var key := InputEventKey.new()
  key.pressed = true
  key.physical_keycode = KEY_0

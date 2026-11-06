@@ -41,7 +41,7 @@ func run() -> void:
  var saw_late := false
  var cursor_tick := 0
  var dirt_cell := Vector2i(96,22)
- while Time.get_ticks_msec()-start < (16000 if role == "host" else (13000 if role == "healer" else 12000)):
+ while Time.get_ticks_msec()-start < (29000 if role == "host" else (26000 if role == "healer" else 25000)):
   await process_frame
   if rejoining and not main.network.active:
    rejoining = false
@@ -59,11 +59,11 @@ func run() -> void:
      check_result(body.health == 30 and body.medicine_progress == 0 and main.items.inventory_for(int(str(body.name))).count_item("spark_balm") == 2,"Server damage interrupts use without spending a portion")
     if body.health == 60 and first_heal_time < 0:
      first_heal_time = main.combat.world_time
-     check_result(body.medicine_cooldown > 5.8 and main.items.inventory_for(int(str(body.name))).count_item("spark_balm") == 1,"First server heal consumes one portion and starts cooldown")
+     check_result(body.medicine_cooldown > 14.8 and main.items.inventory_for(int(str(body.name))).count_item("spark_balm") == 1,"First server heal consumes one portion and starts cooldown")
      print("HEALED")
     if body.health == 90 and not saw_second:
      saw_second = true
-     check_result(main.combat.world_time-first_heal_time >= 6.9,"Held commands cannot skip cooldown or second preparation")
+     check_result(main.combat.world_time-first_heal_time >= 15.9,"Held commands cannot skip cooldown or second preparation")
   elif role == "healer":
    var bag = main.items.local_inventory()
    if not crafted:
@@ -102,7 +102,7 @@ func run() -> void:
   check_result(main.world.block_at(dirt_cell) == 0,"Host terrain remains intact after held empty slot")
  elif role == "healer":
   check_result(checked_guard and reconnect_checked,"Healer completes craft use and reconnect scenario")
-  check_result(main.player.resources.stamina == 100 and main.player.resources.mana == 50,"Healing leaves remote stamina and mana unchanged")
+  check_result(not main.player.resources.snapshot().has("stamina") and main.player.resources.mana == 50,"Healing retains mana without resurrecting removed stamina")
  else:
   check_result(saw_late and saw_second,"Observer sees initial healed state and later shared health change")
   check_result(main.items.local_inventory().count_item("spark_balm") == 0 and main.player.health == 100,"Observer retains independent inventory and health")

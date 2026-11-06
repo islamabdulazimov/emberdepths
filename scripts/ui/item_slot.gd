@@ -14,7 +14,7 @@ func _draw() -> void:
   var tex=preload("res://data/items.gd").icon(item)
   if tex!=null:draw_texture_rect(tex,Rect2((size-Vector2(28,28))/2-Vector2(0,2),Vector2(28,28)),false)
  elif domain=="gear":
-  var ghost:={"weapon":"wood_sword","head":"wood_helm","body":"wood_armor","legs":"wood_legs","shield":"wood_shield"}
+  var ghost:={"weapon":"wood_sword","head":"wood_helm","body":"wood_armor","legs":"wood_legs","shield":"wood_shield","ability":"traveler_knot"}
   draw_texture_rect(preload("res://data/items.gd").icon(ghost[gear_slot]),Rect2((size-Vector2(26,26))/2,Vector2(26,26)),false,Color(0.5,0.65,0.7,0.18))
  var font:Font=get_theme_font("font")
  if slot_number!="":draw_string(font,Vector2(4,11),slot_number,HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("8fa09b"))

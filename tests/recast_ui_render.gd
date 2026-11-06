@@ -35,7 +35,7 @@ func run() -> void:
  key(KEY_SHIFT,true);await process_frame
  var at:Vector2=main.inventory_ui.bag_buttons[1].get_global_rect().get_center();mouse(at,1);await process_frame;mouse(at,0);await process_frame;key(KEY_SHIFT,false);await process_frame
  check(main.player.equipment.shield=="wood_shield" and bag.item_at(1)=="","real Shift click equips shield")
- check(main.player.resources.stamina==100 and main.player.fighter.mode=="idle","Shift inside inventory never rolls or attacks")
+ check(not main.player.resources.snapshot().has("stamina") and main.player.fighter.mode=="idle","Shift inside inventory never rolls or attacks")
  await drag(main.inventory_ui.gear_buttons.head,main.inventory_ui.bag_buttons[5])
  check(main.player.equipment.head=="" and bag.item_at(5)=="wood_helm","actual drag unequips into selected bag cell")
  await drag(main.inventory_ui.bag_buttons[2],main.inventory_ui.gear_buttons.head)

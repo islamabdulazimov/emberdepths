@@ -31,6 +31,7 @@ func run() -> void:
    if duelist[0] == 0:
     duelist[0] = id
     body.position = Vector2(1544,342)
+    body.equipment["ability"]="traveler_knot"
     main.items.inventory_for(id).add("stone_blade",1)
     print("DUELIST_ADMITTED")
    else: body.position = Vector2(1416,342))
@@ -70,13 +71,13 @@ func run() -> void:
   saw_windup = saw_windup or actor.fighter.phase() == "attack_windup"
   saw_hit = saw_hit or enemy.health == 21
   if role == "host":
-   final_stats = final_stats or (saw_hit and actor.fighter.mode == "idle" and actor.health == 100 and actor.resources.stamina == 44)
+   final_stats = final_stats or (saw_hit and actor.fighter.mode == "idle" and actor.health == 100 and not actor.resources.snapshot().has("stamina"))
    if actor.fighter.roll_invulnerable() and not roll_checked:
     roll_checked = true
-    check_result(main.combat.receive_attack(duelist[0],22,enemy.position,enemy) == "dodged" and actor.health == 100 and actor.resources.stamina == 76,"Host validates remote roll stamina and actual hit avoidance")
+    check_result(main.combat.receive_attack(duelist[0],22,enemy.position,enemy) == "dodged" and actor.health == 100 and actor.roll_cooldown > 0,"Host validates remote ability cooldown and actual hit avoidance")
    if actor.fighter.parry_open() and not parry_checked:
     parry_checked = true
-    check_result(main.combat.receive_attack(duelist[0],14,enemy.position,enemy) == "parried" and enemy.attack_state == "stagger" and actor.resources.stamina == 62,"Host resolves remote parry and enemy stagger")
+    check_result(main.combat.receive_attack(duelist[0],14,enemy.position,enemy) == "parried" and enemy.attack_state == "stagger" and not actor.resources.snapshot().has("stamina"),"Host resolves remote parry and enemy stagger")
    if actor.fighter.phase() == "attack_windup" and not windup_checked:
     windup_checked = true
     check_result(enemy.health == 45,"Remote attack cannot damage before its active phase")
@@ -95,7 +96,7 @@ func run() -> void:
     main.network.submit_local(0,false,Vector2i(98,21),0 if saw_hit else 1,0,1.0/30)
  check_result(saw_roll and saw_parry and saw_windup and saw_hit,"Roll parry and phased melee replicate to "+role)
  if role == "host":
-  check_result(roll_checked and parry_checked and windup_checked and final_stats,"Server spends each action once and prevents defensive damage")
+  check_result(roll_checked and parry_checked and windup_checked and final_stats,"Server resolves phased actions and prevents defensive damage")
   check_result(main.items.local_inventory().count_item("stone_blade") == 0 and main.player.health == 100,"Remote actions preserve cooperative host inventory and health")
  check_result(main.combat.entities[enemy_id].health == 21,"One remote active swing produces one hit on "+role)
  print("Network battle ",role," failures: ",failures)

@@ -64,6 +64,10 @@ func reset_arena() -> void:
  player.unclothed = false
  player.hurt_immunity = 0 # A fresh practice trial should demonstrate the first real hit/parry.
  player.medicine_cooldown = 0
+ player.roll_cooldown=0
+ player.guard_cooldown=0
+ player.block_requires_release=false
+ player.equipment["ability"]="traveler_knot"
  var bag = items.local_inventory()
  bag.load_data([])
  for entry in [["stone_blade",1],["stone_pick",1],["stone",30],["stone_wall",20],["torch",8],["spark_balm",6],["wood",44]]: bag.add(entry[0],entry[1])

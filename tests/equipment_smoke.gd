@@ -35,28 +35,29 @@ func run() -> void:
  check(preload("res://scripts/save_schema.gd").validate(state)=="","equipment save validates")
  main.player.equipment=Gear.empty();check(main.saves.restore(state)=="" and main.player.equipment.head=="wood_helm" and main.player.equipment.weapon=="wood_sword","equipment save roundtrip")
  bag=main.items.local_inventory()
- main.player.set_physics_process(false);main.player.hurt_immunity=0;main.player.health=100;main.player.fighter.reset();main.player.resources.stamina=100;main.player.facing=1
+ main.player.set_physics_process(false);main.player.hurt_immunity=0;main.player.health=100;main.player.fighter.reset();main.player.facing=1
  main.equipment_service.block(1,true)
  check(main.player.fighter.mode=="block","R starts separate shield stance")
  var at:Vector2=main.player.position
- check(main.combat.receive_attack(1,20,at+Vector2(12,0),main.player)=="blocked" and main.player.resources.stamina==76 and main.player.health==96,"front block spends exact stamina and reduces chip with armor")
+ check(main.combat.receive_attack(1,20,at+Vector2(12,0),main.player)=="blocked" and not main.player.resources.snapshot().has("stamina") and main.player.health==96,"front block reduces chip with armor without stamina")
  main.player.hurt_immunity=0;main.player.health=100
  check(main.combat.receive_attack(1,20,at-Vector2(12,0),main.player)=="hit" and main.player.health==83,"rear hit bypasses shield but retains light armor")
- main.player.fighter.reset();main.player.hurt_immunity=0;main.player.health=100;main.equipment_service.block(1,true)
+ main.player.fighter.reset();main.player.hurt_immunity=0;main.player.health=100;main.player.guard_cooldown=0;main.equipment_service.block(1,false);main.equipment_service.block(1,true)
  check(main.combat.receive_attack(1,20,at-Vector2(12,0),main.player,true,true)=="hit" and main.player.health==83,"radial flag never turns frontal shield into rear protection")
- main.player.hurt_immunity=0;main.player.fighter.reset();main.player.resources.stamina=1;main.equipment_service.block(1,true)
- check(main.combat.receive_attack(1,20,at+Vector2(12,0),main.player)=="guard_broken" and main.player.resources.stamina==0 and main.player.fighter.mode=="guard_break","empty stamina breaks block")
- main.combat.tick_fighter(main.player,0.64);check(main.player.fighter.mode=="guard_break","guard break has recovery")
- main.combat.tick_fighter(main.player,0.02);check(main.player.fighter.mode=="idle","guard recovers after configured 0.65 seconds")
- main.player.resources.stamina=100;main.player.hurt_immunity=0
- check(main.combat.start_defense(1,"parry") and main.player.resources.stamina==86,"F remains separate 14-stamina parry")
+ main.player.hurt_immunity=0;main.player.fighter.reset();main.player.guard_cooldown=0;main.equipment_service.block(1,false);main.equipment_service.block(1,true)
+ main.combat.tick_fighter(main.player,1.21)
+ check(main.player.fighter.mode=="idle" and main.player.guard_cooldown>0,"shield hold expires with cooldown")
+ main.equipment_service.block(1,true);check(main.player.fighter.mode=="idle","held input cannot restart shield")
+ main.player.guard_cooldown=0;main.equipment_service.block(1,false);main.equipment_service.block(1,true);check(main.player.fighter.mode=="block","shield can restart after release and recovery")
+ main.equipment_service.block(1,false);main.player.hurt_immunity=0
+ check(main.combat.start_defense(1,"parry") and not main.player.resources.snapshot().has("stamina"),"F remains separate parry without a resource cost")
  main.player.fighter.reset();main.player.equipment=Gear.empty();main.player.health=100
  main.combat.damage_player(1,20,at+Vector2(15,0));check(main.player.health==80,"unarmored damage unchanged")
- main.player.health=100;main.player.fighter.reset();main.player.hurt_immunity=0;main.player.resources.stamina=100;main.player.equipment.weapon="wood_sword"
+ main.player.health=100;main.player.fighter.reset();main.player.hurt_immunity=0;main.player.equipment.weapon="wood_sword"
  bag.load_data([])
  var enemy_id:int=main.combat.spawn_entity("seamling",main.player.position+Vector2(28,10))
  check(main.items.swing(main.player,0,Vector2.RIGHT),"equipped wood sword works from empty hotbar slot")
- check(main.player.resources.stamina==86,"wood sword costs data-defined 14 stamina")
+ check(not main.player.resources.snapshot().has("stamina"),"wood sword does not recreate stamina")
  main.combat.tick_fighter(main.player,0.11);check(main.combat.entities[enemy_id].health==36,"windup has no premature damage")
  main.world.solid.update_internals();await physics_frame
  main.combat.tick_fighter(main.player,0.02);check(main.combat.entities[enemy_id].health==18,"wood sword deals exactly data-defined 18 on active phase")

@@ -42,7 +42,7 @@ for path in root.glob('hero_*.png'):
    assert box and box[0]>0 and box[1]>0 and box[2]<64 and box[3]<64,(path.name,row,f,'clipped silhouette',box)
    frames+=1
 print('HERO_UNCLIPPED_FRAMES',frames)
-icons=[p.read_bytes() for p in root.glob('item_*.png')];assert len(icons)==21 and len(set(icons))==21
+icons=[p.read_bytes() for p in root.glob('item_*.png')];assert len(icons)==22 and len(set(icons))==22
 print('DISTINCT_ITEM_ICONS',len(icons))
 # An open door must actually be transparent through the passage.
 im=Image.open(root/'door.png');assert im.getpixel((5*16+10,24))[3]==0

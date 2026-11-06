@@ -1,10 +1,10 @@
 extends RefCounted
-const SLOTS := ["weapon","head","body","legs","shield"]
-const LABELS := {"weapon":"Оружие","head":"Шлем","body":"Доспех","legs":"Поножи","shield":"Щит"}
-const SHIELD := {"stamina_factor":1.2,"minimum_cost":8.0,"damage_fraction":0.25,"break_recovery":0.65,"move_scale":0.35}
-static func empty() -> Dictionary:return {"weapon":"","head":"","body":"","legs":"","shield":""}
+const SLOTS := ["weapon","head","body","legs","shield","ability"]
+const LABELS := {"weapon":"Оружие","head":"Шлем","body":"Доспех","legs":"Поножи","shield":"Щит","ability":"Способность"}
+const SHIELD := {"hold_seconds":1.2,"recovery":0.45,"move_scale":0.35}
+static func empty() -> Dictionary:return {"weapon":"","head":"","body":"","legs":"","shield":"","ability":""}
 static func valid(value: Variant) -> bool:
- if not value is Dictionary or value.size()>5:return false
+ if not value is Dictionary or value.size()>SLOTS.size():return false
  for slot in value:
   if slot not in SLOTS or not value[slot] is String:return false
   if value[slot]!="" and preload("res://data/items.gd").DEFINITIONS.get(value[slot],{}).get("equip_slot","")!=slot:return false

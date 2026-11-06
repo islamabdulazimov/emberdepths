@@ -39,12 +39,12 @@ func run() -> void:
  service.medicine_step(player,0,0.9)
  check_result(player.health == 60 and bag.count_item("spark_balm") == 2,"Short hold cannot complete the heal")
  check_result(service.medicine_step(player,0,0.1) and player.health == 90 and bag.count_item("spark_balm") == 1,"One full second heals thirty and consumes exactly one")
- check_result(player.medicine_cooldown == 6 and player.medicine_progress == 0 and player.heal_flash_amount == 30,"Successful use sets global cooldown and actual heal feedback")
- check_result(player.resources.stamina == 100 and player.resources.mana == 50 and player.hurt_immunity == 0,"Healing does not grant stamina mana or invulnerability")
+ check_result(player.medicine_cooldown == 15 and player.medicine_progress == 0 and player.heal_flash_amount == 30,"Successful use sets global cooldown and actual heal feedback")
+ check_result(not player.resources.snapshot().has("stamina") and player.resources.mana == 50 and player.hurt_immunity == 0,"Healing does not grant stamina mana or invulnerability")
  check_result(not service.medicine_step(player,0,2) and player.health == 90 and bag.count_item("spark_balm") == 1,"Held input cannot bypass medicine cooldown")
  main.combat._physics_process(3)
- check_result(player.medicine_cooldown == 3 and player.health == 90,"Cooldown counts down without passive health regeneration")
- main.combat._physics_process(3)
+ check_result(player.medicine_cooldown == 12 and player.health == 90,"Cooldown counts down without passive health regeneration")
+ main.combat._physics_process(12)
  player.health = 95
  check_result(service.medicine_step(player,0,1) and player.health == 100 and player.heal_flash_amount == 5 and bag.count_item("spark_balm") == 0,"Near-full health clamps healing and reports actual restored amount")
  check_result(player.medicine_latch == 0 and player.medicine_progress == 0,"Last consumed portion keeps self-use input latched")
@@ -85,7 +85,7 @@ func run() -> void:
  player.medicine_cooldown = 0
  player.health = 20
  bag.load_data([])
- check_result(main.saves.load_now() and main.player.health == 80 and is_equal_approx(main.player.medicine_cooldown,4.75) and service.local_inventory().count_item("spark_balm") == 2,"Load restores exact health remaining portions and cooldown")
+ check_result(main.saves.load_now() and main.player.health == 80 and is_equal_approx(main.player.medicine_cooldown,13.75) and service.local_inventory().count_item("spark_balm") == 2,"Load restores exact health remaining portions and cooldown")
  player = main.player
  player.set_physics_process(false)
  player.medicine_cooldown = 0

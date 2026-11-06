@@ -53,11 +53,11 @@ func run() -> void:
  var fighter = main.player.fighter
  fighter.begin("roll",Vector2.RIGHT,0.44)
  var time: float = main.combat.world_time
- var stamina: float = main.player.resources.stamina
+ var resource_state: Dictionary = main.player.resources.snapshot()
  for i in range(240):
   detail._process(1.0/240)
   main.sky._process(1.0/240)
- check_result(fighter.elapsed == 0 and main.combat.world_time == time and main.player.resources.stamina == stamina,"Environmental render updates cannot advance combat, shared time or stamina")
+ check_result(fighter.elapsed == 0 and main.combat.world_time == time and main.player.resources.snapshot() == resource_state,"Environmental render updates cannot advance combat, shared time or stamina")
  main.queue_free()
  await process_frame
  print("Presentation performance failures: ",failures)

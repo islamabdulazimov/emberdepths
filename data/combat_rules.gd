@@ -22,10 +22,7 @@ static func _enemies() -> Dictionary:
 # Shared by ordinary enemies and bosses. Applied to ORIGINAL health once.
 const HEALTH_PER_EXTRA_PLAYER := 0.25
 const MAX_MANA := 50
-const MAX_STAMINA := 100.0
-const STAMINA_REGEN_DELAY := 0.8
-const STAMINA_REGEN_RATE := 28.0
-const PUNCH_STAMINA_COST := 8.0
+const HEALING_COOLDOWN := 15.0
 const PUNCH_DAMAGE := 6
 const PUNCH_POISE_DAMAGE := 6
 

@@ -41,8 +41,9 @@ func run() -> void:
     check(main.combat.receive_attack(remote[0],20,body.position+Vector2(16,0),body)=="blocked","server resolves shield hit")
     phase=1;hit_at=now
    elif phase==1 and now-hit_at>500:
-    body.hurt_immunity=0;body.resources.stamina=1
-    check(main.combat.receive_attack(remote[0],20,body.position+Vector2(16,0),body)=="guard_broken","server resolves guard break")
+    body.hurt_immunity=0;main.combat.tick_fighter(body,1.21)
+    check(body.fighter.mode=="idle" and body.guard_cooldown>0,"server expires shield hold into recovery")
+    main.combat.player_changed.emit(remote[0],main.combat.player_data(body))
     phase=2
   elif role=="client":
    var bag=main.items.local_inventory()
@@ -59,12 +60,12 @@ func run() -> void:
    elif phase==5 and bag.count_item("wood")==29:
     check(main.inventory_ui.storage_slots[0].count==99 and main.inventory_ui.storage_slots[2].count==0,"client quick return has no duplicate loot")
     main.inventory_ui.toggle();main.network.block_local(true);phase=6
-   if main.player.health==96 and main.player.resources.stamina==76:guarded=true
-   if main.player.fighter.mode=="guard_break":broken=true
+   if main.player.health==96 and not main.player.resources.snapshot().has("stamina"):guarded=true
+   if main.player.guard_cooldown>0:broken=true
  if role=="host":check(equipped and phase==2 and chest_sent and chest_returned,"host completes multiplayer gear and quick-storage flow")
  else:
   check(equipped,"remote equipment replicates")
-  check(guarded,"client receives exact shield chip and stamina")
-  check(broken,"client sees guard break")
+  check(guarded,"client receives exact shield chip without stamina")
+  check(broken,"client sees shield recovery")
  main.network.stop();await create_timer(.2).timeout;main.queue_free();await process_frame
  print("NETWORK_EQUIPMENT_CHECKS ",checks," FAILURES ",failures);quit(1 if failures else 0)

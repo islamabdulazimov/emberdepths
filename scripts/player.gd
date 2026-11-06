@@ -1,6 +1,9 @@
 extends CharacterBody2D
 var appearance: Dictionary = preload("res://data/appearance.gd").DEFAULT.duplicate()
-var equipment:Dictionary={"weapon":"","head":"","body":"","legs":"","shield":""}
+var equipment:Dictionary=preload("res://data/equipment.gd").empty()
+var roll_cooldown:=0.0
+var guard_cooldown:=0.0
+var block_requires_release:=false
 var held_item:=""
 var block_flash:=0.0
 var fighter = preload("res://scripts/fighter_state.gd").new()

@@ -209,6 +209,7 @@ func _capture_peer(peer_id: int) -> void:
  var digest: String = profiles.get(id, {}).get("key_hash", profile_key.sha256_text() if peer_id == 1 else "")
  var selected: int = main.interaction.selected_slot if peer_id == 1 and is_instance_valid(main.interaction) else int(main.network.commands.get(peer_id, {}).get("slot", profiles.get(id, {}).get("selected", 0)))
  profiles[id] = {"key_hash": digest, "inventory": main.items.inventory_for(peer_id).to_data(), "life": main.combat.player_data(body), "selected": selected}
+ if body.fighter.mode=="block":profiles[id].life.guard_cooldown=preload("res://data/equipment.gd").SHIELD.recovery
  profiles[id].life.erase("action") # Combat input is transient, never resumed by loading.
  profiles[id].life["medicine_progress"] = 0.0 # Pending self-use is never committed by loading/rejoining.
 
@@ -262,7 +263,7 @@ func capture() -> Dictionary:
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "combat_rules":2, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -334,6 +335,9 @@ func restore(state: Dictionary) -> String:
  main.combat.next_chest_id = state.combat.next_chest
  main.combat.last_night = main.combat.is_night()
  profiles = state.profiles.duplicate(true)
+ for record in profiles.values():
+  for field in ["stamina","max_stamina","stamina_delay"]:record.life.erase(field)
+  record.life.equipment=preload("res://data/equipment.gd").clean(record.life.get("equipment",{}))
  peer_profiles = {1: profile_id}
  main.items.inventory_for(1).load_data(profiles[profile_id].inventory)
  _restore_life(1, profiles[profile_id].life)
@@ -442,6 +446,14 @@ func load_now() -> bool:
   write_blocked = true
   status = "Мир не загружен. Файлы сохранены, автозапись заблокирована: " + result.error
   return false
+ # Keep original bytes before the first rules upgrade, in addition to rotating .bak.
+ if int(result.state.get("combat_rules",1))<2:
+  var original:=save_path+".pre-adventure.original"
+  var source_path:=save_path+".bak" if backup else save_path
+  if not FileAccess.file_exists(original) and DirAccess.copy_absolute(ProjectSettings.globalize_path(source_path),ProjectSettings.globalize_path(original))!=OK:
+   write_blocked=true
+   status="Не удалось сохранить оригинал перед обновлением правил; загрузка отменена"
+   return false
  var error := restore(result.state)
  if error != "":
   write_blocked = true

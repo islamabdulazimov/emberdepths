@@ -70,7 +70,7 @@ try:
   launch('late');time.sleep(.6)
   launch('rejected')
  for role,proc,log in processes:
-  code=proc.wait(timeout=20);log.close()
+  code=proc.wait(timeout=40 if healing_mode else 20);log.close()
   print(role,'exit',code)
   output=(log_dir/(role+'.log')).read_text()
   print(output)

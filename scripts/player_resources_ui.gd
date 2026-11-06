@@ -6,8 +6,8 @@ var progress: Label
 
 func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
- for i in range(3):
-  var icon:=TextureRect.new();icon.texture=load("res://assets/recast/ui_%s.png"%["health","mana","stamina"][i]);icon.position=Vector2(1,i*20);icon.size=Vector2(15,15);icon.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(icon)
+ for i in range(2):
+  var icon:=TextureRect.new();icon.texture=load("res://assets/recast/ui_%s.png"%["health","mana"][i]);icon.position=Vector2(1,i*20);icon.size=Vector2(15,15);icon.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(icon)
   var bar := ProgressBar.new()
   bar.position = Vector2(22, i * 20)
   bar.size = Vector2(180, 16)
@@ -33,7 +33,7 @@ func _ready() -> void:
   labels.append(label)
 
  progress = Label.new()
- progress.position = Vector2(0, 66)
+ progress.position = Vector2(0, 46)
  progress.size = Vector2(220, 32)
  progress.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  progress.max_lines_visible = 2
@@ -51,10 +51,14 @@ func _process(_delta: float) -> void:
  var action: String = main.player.fighter.phase()
  var names := {"attack_windup":"Клинок · замах","attack_active":"Клинок · удар","attack_recovery":"Клинок · восстановление","roll":"Перекат · неуязвимость" if main.player.fighter.roll_invulnerable() else "Перекат · восстановление","parry":"Парирование · окно" if main.player.fighter.parry_open() else ("Парирование · подготовка" if main.player.fighter.elapsed < 0.04 else "Парирование · восстановление"),"parry_success":"Успешное парирование","hurt":"Получен удар","block":"Блок щитом · R","guard_break":"Щит пробит · восстановление"}
  if action != "idle": progress.text = str(names.get(action,action))+"\n"+main.encounter.notice
+ if action=="idle" and main.player.medicine_progress<=0 and main.player.medicine_cooldown<=0:
+  var ability:String=main.player.equipment.get("ability","")
+  var roll_text:="Shift: нужен Узел странника" if ability=="" else ("Перекат: %.1f с"%main.player.roll_cooldown if main.player.roll_cooldown>0 else "Shift: перекат готов")
+  progress.text=roll_text+"\n"+main.encounter.notice
  var values = main.player.resources
- var current := [values.health, values.mana, values.stamina]
- var maximum := [values.max_health, values.max_mana, values.max_stamina]
- for i in range(3):
+ var current := [values.health, values.mana]
+ var maximum := [values.max_health, values.max_mana]
+ for i in range(2):
   bars[i].max_value = maximum[i]
   bars[i].value = current[i]
-  labels[i].text = "%s %d/%d" % [["ОЗ", "МП", "Выносливость"][i], floori(current[i]), maximum[i]]
+  labels[i].text = "%s %d/%d" % [["ОЗ", "МП"][i], floori(current[i]), maximum[i]]

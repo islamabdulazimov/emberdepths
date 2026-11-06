@@ -1,6 +1,7 @@
 extends RefCounted
 # Provisional handcraft recipes; no workbench needed in this prototype.
 const DEFINITIONS := {
+ "traveler_knot":{"output":"traveler_knot","count":1,"ingredients":{"wood":8,"emberstone":2}},
  "stone_pick": {"output": "stone_pick", "count": 1, "ingredients": {"stone": 4, "dirt": 2}},
  "stone_blade": {"output": "stone_blade", "count": 1, "ingredients": {"stone": 6, "dirt": 2}},
  "torch": {"output": "torch", "count": 3, "ingredients": {"emberstone": 1, "stone": 1}},

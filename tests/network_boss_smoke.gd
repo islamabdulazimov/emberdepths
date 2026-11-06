@@ -24,8 +24,6 @@ func run() -> void:
    body.resources.max_health = 1000
    body.resources.health = 1000
    if admitted.size() == 1:
-    body.resources.max_stamina = 1000
-    body.resources.stamina = 1000
     main.items.inventory_for(id).add("stone_blade",1)
     main.items.inventory_changed.emit(id)
    else:
@@ -129,7 +127,7 @@ func run() -> void:
      if absf(actor.position.x - main.player.position.x) > 36:
       axis = signf(actor.position.x - main.player.position.x)
      else: mode = 1
-    saw_regen = saw_regen or main.player.resources.stamina < main.player.resources.max_stamina
+    saw_regen = saw_regen or main.player.fighter.mode=="attack"
    main.network.submit_local(axis,false,cell,mode,0,1.0/60.0)
   elif role == "leaver" and saw_super and saw_four_mob:
    check_result(saw_frozen and saw_stun and saw_private_hud, "Late participant sees frozen boss and own independent resource HUD")
@@ -145,6 +143,6 @@ func run() -> void:
  check_result(finished and main.encounter.used_once and not main.boss_ui.visible, "Boss death hides shared UI and prevents duplicate summon on " + role)
  if role in ["host","observer"]:
   check_result(saw_three and saw_four_mob and saw_after_leave, "New mobs scale for current three/four players while existing boss stays unchanged")
- if role == "fighter": check_result(saw_regen, "Server-authoritative attacks consume fighter stamina")
+ if role == "fighter": check_result(saw_regen, "Server-authoritative attack phases reach fighter")
  print("Boss network ",role," failures: ",failures)
  quit(1 if failures else 0)

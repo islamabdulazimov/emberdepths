@@ -28,3 +28,5 @@ The artwork uses authored pixel clusters and reusable raster rigs. Frames have
 not received commercial production-level individual artist cleanup. Galleries
 show actual renderers, with simulation stopped for inspection, not measured FPS.
 Body/action timing comes from existing gameplay; presentation never creates hits.
+
+- tools/build_ability_art.py: original CC0 knotted cord ability icon and world pickup; one new item, no replacement of existing art.

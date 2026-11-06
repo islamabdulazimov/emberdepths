@@ -10,6 +10,8 @@ func check_result(ok: bool, message: String) -> void:
 func _initialize() -> void: call_deferred("run")
 func ready_player() -> void:
  main.player.fighter.reset()
+ main.player.equipment["ability"]="traveler_knot"
+ main.player.roll_cooldown=0
  main.player.hurt_immunity = 0
  main.player.resources.reset_full()
  main.player.velocity = Vector2.ZERO
@@ -41,7 +43,7 @@ func run() -> void:
  var enemy = combat.entities[enemy_id]
  enemy.grace = 0
  check_result(main.items.swing(player,0,Vector2.RIGHT) and enemy.health == 45 and player.fighter.phase() == "attack_windup","Blade starts with a real windup and no instant damage")
- check_result(player.resources.stamina == 82 and not main.items.swing(player,0,Vector2.RIGHT),"Attack pays once and cannot be spammed during its phases")
+ check_result(not player.resources.snapshot().has("stamina") and not main.items.swing(player,0,Vector2.RIGHT),"Attack has no resource cost and cannot be spammed during phases")
  combat.tick_fighter(player,0.119)
  check_result(enemy.health == 45,"End of windup still cannot hit")
  combat.tick_fighter(player,0.002)
@@ -63,7 +65,7 @@ func run() -> void:
  check_result(combat.entities[enemy_id].health == 45,"Targets beyond the blade tip and collider radius are out of reach")
  combat.set_entity(enemy_id,{})
  ready_player()
- check_result(combat.start_defense(1,"roll") and player.resources.stamina == 76,"Ground roll spends configured stamina")
+ check_result(combat.start_defense(1,"roll") and player.roll_cooldown == T.ROLL.cooldown,"Ground roll starts its configured cooldown")
  check_result(not player.fighter.roll_invulnerable() and not combat.start_defense(1,"roll"),"Roll startup is vulnerable and repeated input cannot restart it")
  player.fighter.advance(0.06)
  var anchor: Vector2 = player.position
@@ -72,11 +74,11 @@ func run() -> void:
  check_result(not player.fighter.roll_invulnerable() and combat.damage_player(1,14,anchor+Vector2(20,0)),"Roll recovery is vulnerable again")
  check_result(not combat.damage_player(1,14,anchor) and player.health == 86,"Hurt immunity prevents an unavoidable damage chain")
  ready_player()
- check_result(not combat.start_defense(1,"roll",INF) and player.resources.stamina == 100,"Invalid directional input cannot start or pay for a defense")
+ check_result(not combat.start_defense(1,"roll",INF) and player.roll_cooldown == 0,"Invalid directional input cannot start or pay for a defense")
  check_result(combat.start_defense(1,"roll",-1) and player.fighter.direction.x == -1,"A held movement direction can choose a backward roll without waiting for a facing update")
  ready_player()
- player.resources.stamina = 10
- check_result(not combat.start_defense(1,"roll") and not combat.start_defense(1,"parry") and player.resources.stamina == 10,"Insufficient stamina rejects defensive actions without spending")
+ player.equipment.ability=""
+ check_result(not combat.start_defense(1,"roll") and combat.start_defense(1,"parry"),"Missing ability blocks roll while parry stays available")
  ready_player()
  player.position.y = 64
  check_result(not combat.start_defense(1,"roll"),"Ground roll cannot restart in midair")

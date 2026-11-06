@@ -144,7 +144,7 @@ func line_clear(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
 
 func player_data(body: CharacterBody2D) -> Dictionary:
  var state: Dictionary = body.resources.snapshot()
- state.merge({"equipment":body.equipment.duplicate(),"held_item":body.held_item,"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
+ state.merge({"roll_cooldown":body.roll_cooldown,"guard_cooldown":body.guard_cooldown,"equipment":body.equipment.duplicate(),"held_item":body.held_item,"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
  state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
  return state
 
@@ -160,6 +160,8 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  body.regen_fraction = data.get("regen_fraction", 0.0)
  body.knockback_remaining = data.get("knockback", 0.0)
  body.fighter.apply(data.get("action",{}))
+ body.roll_cooldown=float(data.get("roll_cooldown",0))
+ body.guard_cooldown=float(data.get("guard_cooldown",0))
  body.resources.apply(data)
  body.medicine_cooldown = float(data.get("medicine_cooldown",0))
  body.medicine_progress = float(data.get("medicine_progress",0))
@@ -189,6 +191,7 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null or body.dead or ((body.hurt_immunity > 0.0 or body.fighter.roll_invulnerable()) and not bypass_immunity):
   return false
+ main.equipment_service.finish_block(body)
  body.fighter.interrupt()
  body.swing_remaining = 0
  body.work_remaining = 0
@@ -351,9 +354,11 @@ func start_defense(id: int, action: String, axis: float = 0) -> bool:
  if not authoritative() or action not in ["roll","parry"]: return false
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null or body.dead or body.fighter.mode != "idle": return false
- if action == "roll" and not body.presentation_grounded(): return false
+ if action == "roll":
+  var ability:String=body.equipment.get("ability","")
+  if preload("res://data/items.gd").DEFINITIONS.get(ability,{}).get("ability","")!="roll" or body.roll_cooldown>0 or not body.presentation_grounded():return false
  var config: Dictionary = Battle.ROLL if action == "roll" else Battle.PARRY
- if not body.resources.spend_stamina(config.cost): return false
+ if action=="roll":body.roll_cooldown=Battle.ROLL.cooldown
  main.items.cancel_medicine(body)
  body.work_remaining = 0
  body.swing_remaining = 0
@@ -377,15 +382,13 @@ func receive_attack(id: int, amount: int, source: Vector2, attacker: Node2D, par
   return "parried"
  if body.fighter.mode=="block" and (source.x-body.position.x)*body.facing>=-1 and body.equipment.shield!="":
   var shield:Dictionary=preload("res://data/items.gd").DEFINITIONS[body.equipment.shield]
-  var cost:=maxf(shield.block_min_stamina,amount*shield.block_stamina_factor)
-  if body.resources.spend_stamina(cost):
-   damage_player(id,maxi(1,ceili(amount*(1-float(shield.block_percent)/100))),source)
-   if not body.dead:body.fighter.reset();body.fighter.begin("block",Vector2(body.facing,0),1.0)
-   body.block_flash=0.15;player_changed.emit(id,player_data(body));return "blocked"
-  body.resources.stamina=0
-  damage_player(id,amount,source)
-  if not body.dead:body.fighter.reset();body.fighter.begin("guard_break",Vector2(body.facing,0),shield.block_break_seconds)
-  player_changed.emit(id,player_data(body));return "guard_broken"
+  var held_elapsed:float=body.fighter.elapsed
+  damage_player(id,maxi(1,ceili(amount*(1-float(shield.block_percent)/100))),source)
+  if not body.dead:
+   body.fighter.reset();body.fighter.begin("block",Vector2(body.facing,0),preload("res://data/equipment.gd").SHIELD.hold_seconds)
+   body.fighter.elapsed=held_elapsed # A hit cannot prolong the allowed hold.
+   body.guard_cooldown=0
+  body.block_flash=0.15;player_changed.emit(id,player_data(body));return "blocked"
  return "hit" if damage_player(id,amount,source) else "immune"
 
 func tick_fighter(body: CharacterBody2D, delta: float) -> void:
@@ -395,6 +398,7 @@ func tick_fighter(body: CharacterBody2D, delta: float) -> void:
  if body.fighter.mode == "attack" and (due or body.fighter.phase() == "attack_active"):
   resolve_attack(int(str(body.name)),body.fighter.direction,true)
  var completed: bool = body.fighter.complete_tick()
+ if completed and previous_mode=="block":body.guard_cooldown=preload("res://data/equipment.gd").SHIELD.recovery
  if completed and previous_mode == "roll": body.velocity.x = body.move_command*body.SPEED
  if completed or before != body.fighter.phase(): player_changed.emit(int(str(body.name)),player_data(body))
 
@@ -409,6 +413,9 @@ func _physics_process(delta: float) -> void:
  var alive: Array = []
  for body in main.get_node("Players").get_children():
   body.hurt_immunity = maxf(0.0, body.hurt_immunity - delta)
+  var defense_cooling:bool=body.roll_cooldown>0 or body.guard_cooldown>0
+  body.roll_cooldown=maxf(0,body.roll_cooldown-delta)
+  body.guard_cooldown=maxf(0,body.guard_cooldown-delta)
   var previous_cooldown: float = body.medicine_cooldown
   body.medicine_cooldown = maxf(0,body.medicine_cooldown-delta)
   var cooldown_changed: bool = previous_cooldown != body.medicine_cooldown
@@ -424,8 +431,7 @@ func _physics_process(delta: float) -> void:
   alive.append(body)
   body.since_hurt += delta
   tick_fighter(body,delta)
-  var recovered: bool = body.resources.tick(delta)
-  if (recovered or cooldown_changed) and body.resource_sync <= 0:
+  if (defense_cooling or cooldown_changed) and body.resource_sync <= 0:
    body.resource_sync = 0.1
    player_changed.emit(int(str(body.name)), player_data(body))
  for id in entities.keys():
@@ -571,6 +577,8 @@ func _process(delta: float) -> void:
    entities[id].night = is_night()
  for body in main.get_node("Players").get_children():
   body.hurt_immunity = maxf(0, body.hurt_immunity - delta)
+  body.roll_cooldown=maxf(0,body.roll_cooldown-delta)
+  body.guard_cooldown=maxf(0,body.guard_cooldown-delta)
   body.fighter.advance(delta)
   body.fighter.complete_tick()
   if body.dead:

@@ -21,7 +21,7 @@ func move(id:int,index:int,slot:String) -> bool:
   if Items.DEFINITIONS.get(item,{}).get("equip_slot","")!=slot:return false
   body.equipment[slot]=item
   bag.slots[index]={"item":previous,"count":0 if previous=="" else 1}
- if body.fighter.mode=="block":body.fighter.reset()
+ finish_block(body,false)
  committed.emit(id);main.items.inventory_changed.emit(id);main.combat.player_changed.emit(id,main.combat.player_data(body))
  return true
 func block(id:int,held:bool) -> void:
@@ -29,9 +29,19 @@ func block(id:int,held:bool) -> void:
  var body=main.get_node("Players").get_node_or_null(str(id))
  if body==null:return
  if not held:
-  if body.fighter.mode=="block":body.fighter.reset();main.combat.player_changed.emit(id,main.combat.player_data(body))
- elif not body.dead and body.fighter.mode=="idle" and body.equipment.shield!="" and body.resources.stamina>=1:
-  main.items.cancel_medicine(body);body.work_remaining=0;body.swing_remaining=0;body.fighter.begin("block",Vector2(body.facing,0),1.0);main.combat.player_changed.emit(id,main.combat.player_data(body))
+  body.block_requires_release=false
+  finish_block(body)
+ elif not body.dead and body.fighter.mode=="idle" and body.equipment.shield!="" and body.guard_cooldown<=0 and not body.block_requires_release:
+  main.items.cancel_medicine(body);body.work_remaining=0;body.swing_remaining=0
+  body.block_requires_release=true
+  body.fighter.begin("block",Vector2(body.facing,0),Gear.SHIELD.hold_seconds)
+  main.combat.player_changed.emit(id,main.combat.player_data(body))
+
+func finish_block(body:CharacterBody2D,publish:bool=true) -> void:
+ if body.fighter.mode!="block":return
+ body.fighter.reset()
+ body.guard_cooldown=Gear.SHIELD.recovery
+ if publish:main.combat.player_changed.emit(int(str(body.name)),main.combat.player_data(body))
 
 func into_bag(id:int,slot:String,index:int) -> bool:
  if not main.combat.authoritative() or slot not in Gear.SLOTS or index<0 or index>=30:return false
@@ -42,13 +52,14 @@ func into_bag(id:int,slot:String,index:int) -> bool:
  var item:String=body.equipment[slot]
  if item=="":return false
  bag.slots[index]={"item":item,"count":1};body.equipment[slot]=""
- if body.fighter.mode=="block":body.fighter.reset()
+ finish_block(body,false)
  committed.emit(id);main.items.inventory_changed.emit(id);main.combat.player_changed.emit(id,main.combat.player_data(body));return true
 
 func starter(id:int) -> void:
  # Called only in the one-time creation branch, never on load or respawn.
  var body=main.get_node("Players").get_node_or_null(str(id))
  if body==null:return
- body.equipment={"weapon":"","head":"wood_helm","body":"wood_armor","legs":"wood_legs","shield":"wood_shield"}
+ body.equipment=Gear.empty()
+ body.equipment.merge({"head":"wood_helm","body":"wood_armor","legs":"wood_legs","shield":"wood_shield"},true)
  main.items.inventory_for(id).add("wood_sword",1)
  committed.emit(id);main.items.inventory_changed.emit(id);main.combat.player_changed.emit(id,main.combat.player_data(body))

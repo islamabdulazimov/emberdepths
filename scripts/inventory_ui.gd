@@ -53,7 +53,9 @@ func _ready() -> void:
  var hint:=Label.new();hint.text="Перетащи предмет или выбери два слота.\nShift + клик: экипировать / быстро перенести.";hint.add_theme_font_size_override("font_size",12);layout.add_child(hint)
  var gear_layout:=panel(Vector2(20,106),146,"СНАРЯЖЕНИЕ")
  gear_panel=gear_layout.get_parent()
- gear_portrait=Control.new();gear_portrait.set_script(preload("res://scripts/ui/portrait.gd"));gear_portrait.custom_minimum_size=Vector2(120,98);gear_portrait.appearance=main.player.appearance;gear_layout.add_child(gear_portrait)
+ gear_portrait=Control.new();gear_portrait.set_script(preload("res://scripts/ui/portrait.gd"));gear_portrait.custom_minimum_size=Vector2(120,48);gear_portrait.appearance=main.player.appearance;gear_layout.add_child(gear_portrait)
+ gear_portrait.body.position=Vector2(40,42)
+ gear_portrait.body.scale=Vector2(1.35,1.35)
  for key in Gear.SLOTS:
   var row:=HBoxContainer.new();gear_layout.add_child(row)
   var button:=slot("gear",0,key);row.add_child(button);gear_buttons[key]=button;button.pressed.connect(func():_gear_click(key))
@@ -133,7 +135,7 @@ func refresh() -> void:
   return
  var inventory = main.items.local_inventory()
  for key in gear_buttons:
-  _paint(gear_buttons[key],{"item":main.player.equipment[key],"count":0 if main.player.equipment[key]=="" else 1},"",false)
+  _paint(gear_buttons[key],{"item":main.player.equipment.get(key,""),"count":0 if main.player.equipment.get(key,"")=="" else 1},"",false)
  if is_instance_valid(gear_portrait):
   gear_portrait.body.equipment=main.player.equipment.duplicate()
   gear_portrait.body.appearance=main.player.appearance.duplicate()
@@ -154,6 +156,8 @@ func refresh() -> void:
   _paint(bag_buttons[i], inventory.slots[i], str(i + 1), i == source_slot and not source_box)
  if storage_anchor != Vector2i(-1,-1) and storage_slots.size() == 30:
   for i in range(30): _paint(storage_buttons[i],storage_slots[i],str(i+1),source_box and i == source_slot)
+
+ if is_instance_valid(hovered) and hovered.item!="":hover(hovered)
 
 func reset_storage() -> void:
  storage_requested = false

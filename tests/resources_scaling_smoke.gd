@@ -19,19 +19,13 @@ func run() -> void:
  check_result(Rules.scaled_health(100, 0) == 100 and Rules.scaled_health(100, 9) == 175, "Player count is constrained to 1–4")
  var resources = Resources.new()
  resources.health = 40
- resources.tick(30)
  check_result(resources.health == 40 and resources.heal(100) == 60, "Health only restores by healing and never exceeds maximum")
  check_result(resources.spend_mana(20) and resources.mana == 30 and not resources.spend_mana(31), "Mana spend rejects insufficient reserve")
  check_result(resources.restore_mana(100) == 20 and resources.mana == 50, "Mana restoration respects maximum")
- check_result(resources.spend_stamina(20), "Stamina action can begin with sufficient reserve")
- resources.tick(0.5)
- check_result(resources.stamina == 80, "Stamina waits before regeneration")
- resources.set_continuous_use("future_sprint", true)
- resources.tick(5)
- check_result(resources.stamina == 80, "Continuous use prevents regeneration")
- resources.set_continuous_use("future_sprint", false)
- resources.tick(0.4)
- check_result(is_equal_approx(resources.stamina, 82.8), "Stamina regenerates only after remaining delay")
+ var legacy:Dictionary=resources.snapshot()
+ legacy.merge({"stamina":0,"max_stamina":140,"stamina_delay":0.8})
+ resources.apply(legacy)
+ check_result(not resources.snapshot().has("stamina") and resources.health==100 and resources.mana==50,"Legacy stamina is ignored while health and mana remain")
  var main = load("res://scenes/main.tscn").instantiate()
  root.add_child(main)
  main.set_physics_process(false)
@@ -58,28 +52,21 @@ func run() -> void:
  check_result(combat.entities[scaled].max_health == 79 and combat.entities[scaled].health == 79, "Replication restores frozen maximum without multiplying it again")
  check_result(combat.enemy_speed("ashling") == 34 and Rules.ENEMIES.ashling.day_damage == 14, "Scaling leaves speed and damage unchanged")
  main.items.local_inventory().add("stone_blade", 1)
- main.player.resources.stamina = 17
  main.items.attack_ready_at[1] = 0
- check_result(not main.items.swing(main.player, 0, Vector2.RIGHT) and main.player.swing_remaining == 0, "Insufficient stamina blocks attack before animation or damage")
- main.player.resources.stamina = 100
- check_result(main.items.swing(main.player, 0, Vector2.RIGHT) and main.player.resources.stamina == 82, "Existing weapon consumes configured stamina once")
- main.player.resources.stamina = 0
- check_result(main.player.swing_remaining > 0, "Started swing completes even if reserve then reaches zero")
+ check_result(main.items.swing(main.player, 0, Vector2.RIGHT) and not main.items.swing(main.player,0,Vector2.RIGHT), "Weapon needs no stamina but keeps its phase lock")
  combat.tick_fighter(main.player,0.5)
- check_result(main.items.use_primary(main.player, Vector2i(96,22),9) and main.player.resources.stamina == 0, "Mining still works at zero stamina without spending it")
+ check_result(main.items.use_primary(main.player, Vector2i(96,22),9), "Mining remains independent of combat resource costs")
  main.player.resources.mana = 7
  combat.respawn(main.player)
- check_result(main.player.health == 100 and main.player.resources.mana == 50 and main.player.resources.stamina == 100, "Respawn completely restores all three resources")
+ check_result(main.player.health == 100 and main.player.resources.mana == 50, "Respawn restores health and mana")
  main.player.resources.max_health = 120
  main.player.resources.max_mana = 70
- main.player.resources.max_stamina = 140
  main.player.resources.health = 90
  main.player.resources.mana = 15
- main.player.resources.stamina = 33
  var life: Dictionary = combat.player_data(main.player)
  main.player.resources.reset_full()
  combat.apply_player_state(1, life)
- check_result(main.player.health == 90 and main.player.resources.max_health == 120 and main.player.resources.mana == 15 and main.player.resources.max_mana == 70 and main.player.resources.stamina == 33 and main.player.resources.max_stamina == 140, "Life snapshot restores all current and maximum resource values")
+ check_result(main.player.health == 90 and main.player.resources.max_health == 120 and main.player.resources.mana == 15 and main.player.resources.max_mana == 70 and not life.has("stamina"), "Life snapshot restores all current and maximum resource values")
  main.get_node("HUD/PlayerResources")._process(0)
  check_result(main.get_node("HUD/PlayerResources").labels[0].text == "ОЗ 90/120" and main.get_node("HUD/PlayerResources").labels[1].text == "МП 15/70", "HUD reads local player state and maximums")
  print("Resource/scaling failures: ", failures)

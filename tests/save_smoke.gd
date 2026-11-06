@@ -35,8 +35,6 @@ func run() -> void:
  player.resources.max_health = 120
  player.resources.max_mana = 70
  player.resources.mana = 17
- player.resources.max_stamina = 140
- player.resources.stamina = 33
  player.health = 73
  player.unclothed = true
  player.since_hurt = 8.0
@@ -84,13 +82,13 @@ func run() -> void:
  check_result(main.combat.entities[spirit_id].health == 1 and main.combat.entities[spirit_id].anchor == anchor, "Wounded spirit retains health and leash anchor")
  check_result(main.combat.chests[5].contents == contents.to_data(), "Death chest contents restore")
  check_result(main.items.drops[drop_id].count == 4 and main.items.drops[drop_id].velocity == Vector2(2, 3) and main.items.drops[drop_id].age == 7, "Dropped stack physics and pickup age restore")
- check_result(main.player.resources.max_health == 120 and main.player.resources.mana == 17 and main.player.resources.max_mana == 70 and main.player.resources.stamina == 33 and main.player.resources.max_stamina == 140, "Disk load restores current and maximum HP mana stamina")
+ check_result(main.player.resources.max_health == 120 and main.player.resources.mana == 17 and main.player.resources.max_mana == 70 and not main.combat.player_data(main.player).has("stamina"), "Disk load restores HP/mana and omits removed stamina")
  var legacy: Dictionary = expected.duplicate(true)
  for field in ["max_health", "mana", "max_mana", "stamina", "max_stamina", "stamina_delay"]:
   legacy.profiles[saves.profile_id].life.erase(field)
  for entity in legacy.combat.entities.values():
   for field in ["base_health", "max_health", "scaling_players"]: entity.erase(field)
- check_result(saves.restore(legacy) == "" and main.player.resources.mana == 50 and main.player.resources.stamina == 100, "Old saves load with resource defaults and no repeated enemy scaling")
+ check_result(saves.restore(legacy) == "" and main.player.resources.mana == 50 and not main.player.resources.snapshot().has("stamina"), "Old saves load with resource defaults and no repeated enemy scaling")
  var bad: Dictionary = expected.duplicate(true)
  bad.world.blocks[Vector2i(-1, 0)] = 1
  var unchanged: Dictionary = saves.capture()
