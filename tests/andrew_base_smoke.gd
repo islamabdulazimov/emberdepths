@@ -67,6 +67,8 @@ func run() -> void:
  main.encounter.pending = true
  check_result(main.encounter.try_spawn(), "New test world may start a fresh encounter")
  main.combat.damage_player(1, 1000, main.player.position, true)
- check_result(main.encounter.actor == null and not main.boss_ui.visible and main.encounter.used_once, "Participant death cancels encounter and prevents respawn of boss")
+ check_result(is_instance_valid(main.encounter.actor) and main.boss_ui.visible,"one downed participant leaves allies fighting")
+ main.combat.damage_player(2,1000,main.get_node("Players/2").position,true)
+ check_result(main.encounter.actor==null and not main.boss_ui.visible and main.encounter.used_once,"all participating players downed ends encounter")
  print("Andrew base failures: ", failures)
  quit(1 if failures else 0)

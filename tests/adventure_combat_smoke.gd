@@ -94,7 +94,7 @@ func run() -> void:
  var backup_path:String=main.saves.save_path+".pre-adventure.original"
  check(FileAccess.get_file_as_string(backup_path)==original,"upgrade stores immutable byte-identical original")
  check(main.player.equipment.ability=="" and not main.combat.player_data(main.player).has("stamina"),"legacy player gets empty ability and no resource resurrection")
- check(main.combat.chests[1].contents[0].count==99 and main.combat.chests[1].equipment.head=="wood_helm","legacy death chest items remain intact until dedicated migration")
+ check(main.combat.chests.is_empty() and main.items.local_inventory().count_item("wood")==99 and main.player.equipment.head=="wood_helm","legacy death chest items migrate without loss")
  check(main.saves.save_now() and main.saves.load_now() and FileAccess.get_file_as_string(backup_path)==original,"saving and reloading new rules never overwrites original backup")
  var invalid:Dictionary=main.saves.capture();invalid.profiles[invalid.host_profile].life.roll_cooldown=INF
  check(Schema.validate(invalid)!="","schema rejects invalid ability cooldown")

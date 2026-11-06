@@ -77,7 +77,7 @@ func run() -> void:
   check_result(main.combat.world_time == 190 and main.combat.is_night(), "Real restart resumes night without resetting day")
   var tree: Dictionary = main.world.trees[0]
   check_result(not tree.active and tree.height == 7 and tree.form == 1 and tree.seed == 10343 and main.world.block_at(tree.cell) == -1, "Real restart preserves exact tree variant and removed support state")
-  check_result(main.combat.entities.values()[0].health == 1 and main.combat.entities.values()[0].anchor == Vector2(1600, 384), "Real restart preserves wounded spirit and anchor")
-  check_result(main.combat.chests[7].contents[0].item == "stone_blade", "Real restart retains equipment inside death chest")
+  check_result(main.combat.entities.is_empty(), "Real restart removes obsolete death spirits")
+  check_result(main.combat.chests.is_empty() and main.items.local_inventory().count_item("stone_blade")==1, "Real restart migrates old death equipment to owner")
  print("Restart ", mode, " failures: ", failures)
  quit(1 if failures else 0)

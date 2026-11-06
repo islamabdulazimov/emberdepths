@@ -87,7 +87,7 @@ func _process(delta: float) -> void:
   if is_instance_valid(main.network) and main.combat.authoritative():rescue()
  if opened and (main.player.dead or active_id!=nearest()):close_dialogue()
  var id:=nearest()
- prompt.visible=not id.is_empty() and not opened and not main.pause_open and not main.inventory_ui.opened
+ prompt.visible=not id.is_empty() and not opened and not main.pause_open and not main.inventory_ui.opened and main.survival.nearest_downed()==0
  if prompt.visible:
   prompt.text=Data.DEFINITIONS[id].name+" · E — поговорить"
   prompt.position=actors[id].get_global_transform_with_canvas().origin+Vector2(-80,-78)

@@ -67,6 +67,12 @@ var heal_flash_amount := 0
 var health: int:
  get: return resources.health
  set(value): resources.health = clampi(value, 0, resources.max_health)
+var money:=0
+var recovery_count:=0
+var help_progress:=0.0
+var revive_immunity:=0.0
+var revive_trail:Array[Vector2]=[]
+var trail_clock:=0.0
 var dead := false
 var unclothed := false
 var hurt_immunity := 0.0
@@ -83,14 +89,16 @@ func submit_command(axis: float, jump: bool) -> void:
 
 func _physics_process(delta: float) -> void:
  if dead:
-  velocity = Vector2.ZERO
+  velocity.x=move_toward(velocity.x,0,1000*delta)
+  velocity.y=minf(600,velocity.y+GRAVITY*delta)
+  move_and_slide()
   return
  knockback_remaining = maxf(0.0, knockback_remaining - delta)
  if fighter.mode=="block":
   velocity.x=move_toward(velocity.x,move_command*SPEED*0.35,1000*delta)
  elif fighter.mode == "roll":
   velocity.x = fighter.direction.x*float(Battle.ROLL.speed)
- elif fighter.mode in ["parry","parry_success"]:
+ elif fighter.mode in ["parry","parry_success","help"]:
   velocity.x = move_toward(velocity.x,0,1600*delta)
  elif knockback_remaining <= 0:
   var movement_scale := 0.45 if fighter.mode == "attack" else 1.0
@@ -150,6 +158,12 @@ func presentation_grounded() -> bool:
  return false
 
 func _process(delta: float) -> void:
+ if revive_immunity>0 and not dead:
+  trail_clock+=delta
+  if trail_clock>=.06:
+   trail_clock=0;revive_trail.append(position)
+   if revive_trail.size()>5:revive_trail.pop_front()
+ else:revive_trail.clear()
  if not visual_initialized:
   visual_facing = facing
   visual_target_facing = facing
@@ -178,10 +192,10 @@ func _process(delta: float) -> void:
  visual_initialized = true
  if dead:
   visual_death_age+=delta
-  self_modulate.a=1-smoothstep(0.3,0.65,visual_death_age)
+  self_modulate.a=1
   queue_redraw()
  else:
-  self_modulate.a=1
+  self_modulate.a=.58 if revive_immunity>0 else 1
   visual_alive_unclothed=unclothed
  visual_was_dead = dead
  visual_health = health
@@ -213,7 +227,9 @@ func _process(delta: float) -> void:
   queue_redraw()
 
 func _draw() -> void:
- if dead and visual_death_age>=0.65:return
+ if revive_immunity>0 and not dead:
+  for i in range(revive_trail.size()):draw_rect(Rect2(revive_trail[i]-position+Vector2(-4,-12),Vector2(8,17)),Color(.7,.93,.86,.035*(i+1)))
+  for pad in [3,2,1]:draw_rect(Rect2(-6-pad,-20-pad,12+pad*2,26+pad*2),Color(.7,.94,.84,.035))
  preload("res://scripts/visuals/hero_sprite.gd").draw_actor(self)
 
 func _draw_limb(start: Vector2, joint: Vector2, end: Vector2, color: Color, width: float, sleeved: bool = true) -> void:

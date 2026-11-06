@@ -194,8 +194,7 @@ func run() -> void:
  main.items.swing(player,0,Vector2.RIGHT)
  combat.tick_fighter(player,0.13)
  combat.tick_fighter(player,0.05)
- var spirit = combat.entities.values()[0]
- check_result(combat.chests.is_empty() and spirit.kind == "spirit" and spirit.health == spirit.max_health,"A phased swing that breaks a death chest cannot also hit its newborn spirit")
+ check_result(combat.chests.has(999) and combat.entities.is_empty(),"legacy chest cannot be struck into a newborn spirit")
  ready_player()
  player.fighter.begin("parry",Vector2.RIGHT,T.PARRY.duration)
  var saved: Dictionary = main.saves.capture()

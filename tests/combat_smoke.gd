@@ -139,68 +139,25 @@ func run() -> void:
  bag.add("torch", 3)
  var carried: Array = bag.to_data()
  player.hurt_immunity = 0
- check_result(combat.damage_player(1, 999, original + Vector2(20, 0)) and player.dead and player.health == 0 and player.unclothed, "Fatal hit kills player and removes outfit")
- check_result(combat.chests.size() == 1 and bag.count_item("stone") == 0 and combat.chests.values()[0].contents == carried, "Death transfers complete inventory into one chest")
- check_result(not combat.damage_player(1, 999, original) and combat.chests.size() == 1, "Dead player cannot create repeated chests from repeated hits")
- check_result(not items.use_primary(player, Vector2i(97, 22), 0) and not items.place_selected(player, Vector2i(97, 21), 0) and not items.transfer(1, 0, 1), "Dead player cannot mine build or transfer")
- check_result(items.craft(1, "dirt_wall") == "Нельзя создавать предметы после смерти", "Crafting disabled while dead")
+ player.money=101
+ check_result(combat.damage_player(1,999,original+Vector2(20,0)) and player.dead and player.health==0 and not player.unclothed,"fatal hit downs player without removing outfit")
+ check_result(combat.chests.is_empty() and bag.to_data()==carried and player.money==51,"downed keeps complete inventory and half wallet")
+ check_result(not combat.damage_player(1,999,original) and player.money==51,"repeat hits cannot charge a downed character twice")
+ check_result(not items.use_primary(player,Vector2i(97,22),0) and not items.place_selected(player,Vector2i(97,21),0) and not items.transfer(1,0,1),"downed player cannot mine build or transfer")
+ check_result(items.craft(1,"dirt_wall")=="Нельзя создавать предметы в упавшем состоянии","crafting disabled while downed")
  combat._physics_process(1.9)
- check_result(not player.dead and player.health == 100 and player.unclothed and player.hurt_immunity > 0 and bag.count_item("stone") == 0, "Respawn restores health and immunity but not inventory or outfit")
- player.hurt_immunity = 0
- combat.damage_player(1, 999, original)
- check_result(combat.chests.size() == 2 and combat.chests.values()[0].contents == carried, "Second death preserves earlier chest")
- combat._physics_process(1.9)
- var first_chest = combat.chests.values()[0]
- var chest_position: Vector2 = first_chest.position
- var chest_cell: Vector2i = main.world.cell_at(chest_position)
- player.position = chest_position + Vector2(100, 0)
- check_result(not combat.break_chest(player, chest_cell), "Chest cannot be broken beyond reach")
- player.position = chest_position
- check_result(combat.break_chest(player, chest_cell) and combat.chests.size() == 1 and combat.entities.size() == 1, "Breaking chest releases loot and one spirit")
- var stone_count := 0
- var pick_count := 0
- for drop in items.drops.values():
-  if drop.item_id == "stone":
-   stone_count += drop.count
-  elif drop.item_id == "stone_pick":
-   pick_count += drop.count
- check_result(stone_count == 10 and pick_count == 1, "Chest contents return exactly once as dropped resources")
- var spirit_id: int = combat.entities.keys()[0]
- var anchor: Vector2 = combat.entities[spirit_id].anchor
- player.position = anchor + Vector2(300, 0)
- combat.entities[spirit_id].position = anchor + Vector2(500, 0)
- var inside_tether := true
- for i in range(30):
-  combat._physics_process(0.1)
-  inside_tether = inside_tether and combat.entities[spirit_id].position.distance_to(anchor) <= 160.01
- check_result(inside_tether, "Flying spirit stays within ten blocks of original chest")
- combat.hit_entity(spirit_id, 9999, Vector2.RIGHT)
- check_result(combat.entities.has(spirit_id) and combat.entities[spirit_id].health == 1, "Spirit survives first hit regardless of weapon damage")
- combat.hit_entity(spirit_id, 1, Vector2.RIGHT)
- check_result(not combat.entities.has(spirit_id), "Second hit defeats spirit")
- player.position = original
- player.health = 100
- player.hurt_immunity = 0
- spirit_id = combat.spawn_entity("spirit", original, original)
- combat._physics_process(0.1)
- check_result(player.health == 100, "Newborn spirit gives time to recover equipment")
- combat._physics_process(1.2)
- check_result(player.health == 88, "Spirit contact damages after grace period")
- combat._physics_process(0.2) # Finish hit recovery before the unarmed counterattack.
- clear_enemies(combat)
- # The first chest is gone; punch target uses an adjacent empty tile.
- spirit_id = combat.spawn_entity("spirit", original + Vector2(20, 0), original)
- items.attack_ready_at[1] = 0
- var spirit_cell: Vector2i = main.world.cell_at(combat.entities[spirit_id].position)
- check_result(items.use_primary(player, spirit_cell, 9) and combat.entities[spirit_id].health == 1 and player.swing_unarmed, "Empty hand can strike spirit after loss of gear")
- items.attack_ready_at[1] = 0
- items.use_primary(player, spirit_cell, 9)
- check_result(not combat.entities.has(spirit_id), "Two unarmed strikes also defeat spirit")
+ check_result(player.dead and bag.to_data()==carried,"time never automatically respawns downed character")
+ check_result(main.survival.respawn_request(1) and player.health==100 and bag.to_data()==carried,"explicit respawn retains all items")
+ player.hurt_immunity=0;combat.damage_player(1,999,original)
+ check_result(player.dead and player.money==26 and combat.chests.is_empty(),"second death drops half remainder without a chest")
+ main.survival.respawn_request(1)
+ check_result(not combat.break_chest(player,main.world.cell_at(original)) and combat.entities.is_empty(),"old recovery interaction cannot create a new spirit")
+ player.position=original;player.hurt_immunity=0;player.fighter.reset()
  main.world.apply_edit(Vector2i(96, 21), 2)
  main.world.apply_edit(Vector2i(96, 20), 2)
  var spawn: Vector2 = main.world.safe_spawn_position()
  check_result(main.world.block_at(main.world.cell_at(spawn + Vector2(0, -4))) == -1, "Respawn finder avoids player-built solid at original spawn")
  var state: Dictionary = combat.snapshot(true)
- check_result(state.chests.size() == 1 and state.chests.values()[0].has("contents"), "Combat snapshot retains chest contents for future saves and late join")
+ check_result(state.chests.is_empty() and state.has("economy"), "Combat snapshot retains money for saves and late join")
  print("Combat failures: ", failures)
  quit(1 if failures else 0)

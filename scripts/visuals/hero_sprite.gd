@@ -5,6 +5,9 @@ static func texture(path:String) -> Texture2D:
  if not textures.has(path):textures[path]=load(path)
  return textures[path]
 static func draw_actor(body:Node2D) -> void:
+ if body.dead:
+  draw_downed(body)
+  return
  var row:="idle";var progress:=fposmod(body.visual_idle_clock*0.7,1.0)
  var mode:String=body.fighter.mode
  var face:int=body.facing
@@ -16,6 +19,7 @@ static func draw_actor(body:Node2D) -> void:
   elif t<0.22:row="active";progress=(t-0.12)/0.1
   else:row="recovery";progress=(t-0.22)/0.25
  elif mode=="roll":row="roll";progress=body.visual_action_time/0.44
+ elif mode=="help":row="mine";progress=fposmod(body.visual_idle_clock*.8,1.0)*.3
  elif mode in ["parry","parry_success"]:
   row="parry";progress=body.visual_action_time/maxf(body.fighter.duration,0.01)
   if mode=="parry_success":progress=.25+.75*progress
@@ -62,7 +66,11 @@ static func draw_actor(body:Node2D) -> void:
  if mode!="attack" and is_instance_valid(main.get("items")) and main.get("player")==body:
   var selected:String=main.items.local_inventory().item_at(main.interaction.selected_slot)
   if selected!="":item=selected
- if row=="mine":item="" if body.work_kind=="punch" or body.swing_unarmed else ("stone_axe" if body.work_kind=="axe" or body.swing_tool else "stone_pick")
+ if mode=="help":item=""
+ elif row=="mine":item="" if body.work_kind=="punch" or body.swing_unarmed else ("stone_axe" if body.work_kind=="axe" or body.swing_tool else "stone_pick")
+ if mode=="help":
+  body.draw_set_transform(right*Vector2(face,1),0,Vector2(face,1))
+  body.draw_texture_rect(texture("res://assets/recast/drop_spark_binding.png"),Rect2(-4,-3,8,8),false)
  if item!="" and not body.dead and preload("res://data/items.gd").DEFINITIONS.get(item,{}).get("kind","") in ["weapon","tool","axe","torch"]:
   var tool:bool=item in ["stone_pick","stone_axe"]
   body.draw_set_transform(right*Vector2(face,1),(float(pose.weapon)+roll_angle+(0.8 if tool else 0.0))*face,Vector2(face,1))
@@ -71,3 +79,13 @@ static func draw_actor(body:Node2D) -> void:
  if row=="active":body.draw_texture_rect_region(preload("res://assets/recast/sword_trace.png"),Rect2(8,-27,24,24),Rect2(clampi(int(progress*4),0,3)*24,0,24,24),Color(1,1,1,0.65))
  body.draw_set_transform_matrix(Transform2D.IDENTITY)
  if body.fighter.parry_open():body.draw_line(Vector2(face*12,-20),Vector2(face*15,-17),Color("f3d3a0"),1)
+
+static func draw_downed(body:Node2D) -> void:
+ var a:Dictionary=preload("res://data/appearance.gd").clean(body.appearance)
+ var frame:=int(body.visual_idle_clock*5)%12
+ var src:=Rect2(frame*64,0,64,64);var dst:=Rect2(-32,-41,64,64)
+ body.draw_set_transform(Vector2.ZERO,0,Vector2(body.facing,1))
+ body.draw_texture_rect_region(texture("res://assets/recast/downed_%s_%s_%d_%s.png"%[a.gender,a.hair,a.skin,"bare" if body.unclothed else "coat"]),dst,src)
+ for part in ["legs","body","head"]:
+  if body.equipment.get(part,"")!="":body.draw_texture_rect_region(texture("res://assets/recast/downed_armor_%s.png"%part),dst,src)
+ body.draw_set_transform_matrix(Transform2D.IDENTITY)

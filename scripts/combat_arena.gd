@@ -51,7 +51,9 @@ func prepare_ground() -> void:
 
 func reset_arena() -> void:
  encounter.reset_run()
- for id in combat.entities.keys(): combat.set_entity(id,{})
+ survival.restore({})
+ player.money=0;player.recovery_count=0;player.help_progress=0
+ for id in combat.entities.keys(): combat.set_entity(id,{},false,false)
  for id in combat.chests.keys(): combat.set_chest(id,{})
  for id in items.drops.keys(): items.set_drop(id,{})
  if inventory_ui.opened: inventory_ui.toggle()
@@ -96,4 +98,4 @@ func _request_close() -> void: get_tree().quit()
 
 func _process(delta: float) -> void:
  super._process(delta)
- if is_instance_valid(arena_controls): arena_controls.visible = not inventory_ui.opened
+ if is_instance_valid(arena_controls): arena_controls.visible = not inventory_ui.opened and not player.dead

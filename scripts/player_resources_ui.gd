@@ -49,12 +49,13 @@ func _process(_delta: float) -> void:
  elif main.player.medicine_cooldown > 0:
   progress.text = "Бальзам · готов через %.1f с\n%s" % [main.player.medicine_cooldown,main.encounter.notice]
  var action: String = main.player.fighter.phase()
- var names := {"attack_windup":"Клинок · замах","attack_active":"Клинок · удар","attack_recovery":"Клинок · восстановление","roll":"Перекат · неуязвимость" if main.player.fighter.roll_invulnerable() else "Перекат · восстановление","parry":"Парирование · окно" if main.player.fighter.parry_open() else ("Парирование · подготовка" if main.player.fighter.elapsed < 0.04 else "Парирование · восстановление"),"parry_success":"Успешное парирование","hurt":"Получен удар","block":"Блок щитом · R","guard_break":"Щит пробит · восстановление"}
+ var names := {"attack_windup":"Клинок · замах","attack_active":"Клинок · удар","attack_recovery":"Клинок · восстановление","roll":"Перекат · неуязвимость" if main.player.fighter.roll_invulnerable() else "Перекат · восстановление","parry":"Парирование · окно" if main.player.fighter.parry_open() else ("Парирование · подготовка" if main.player.fighter.elapsed < 0.04 else "Парирование · восстановление"),"parry_success":"Успешное парирование","help":"Помощь товарищу · %d%%"%roundi(main.player.help_progress*100),"hurt":"Получен удар","block":"Блок щитом · R","guard_break":"Щит пробит · восстановление"}
  if action != "idle": progress.text = str(names.get(action,action))+"\n"+main.encounter.notice
  if action=="idle" and main.player.medicine_progress<=0 and main.player.medicine_cooldown<=0:
   var ability:String=main.player.equipment.get("ability","")
   var roll_text:="Shift: нужен Узел странника" if ability=="" else ("Перекат: %.1f с"%main.player.roll_cooldown if main.player.roll_cooldown>0 else "Shift: перекат готов")
   progress.text=roll_text+"\n"+main.encounter.notice
+ if main.player.dead:progress.text="Ожидание помощи" if main.player.help_progress<=0 else "Помощь: %d%%"%roundi(main.player.help_progress*100)
  var values = main.player.resources
  var current := [values.health, values.mana]
  var maximum := [values.max_health, values.max_mana]

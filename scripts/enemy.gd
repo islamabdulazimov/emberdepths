@@ -6,6 +6,7 @@ var site_guard := false
 var hum: AudioStreamPlayer2D
 var audio_state := "chase"
 
+var money:=0
 var kind := "ashling"
 var health := 45
 var max_health := 45
@@ -79,6 +80,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
  preload("res://scripts/visuals/actor_atlas.gd").draw_actor(self)
  var bar_y: float = -float(Creatures.DEFINITIONS[kind].visual_height)-5 if Creatures.DEFINITIONS.has(kind) else -23.0
+ if money>0:draw_texture_rect(preload("res://assets/recast/coin.png"),Rect2(-5,bar_y-12-roundf(sin(clock*3)),10,10),false)
  draw_rect(Rect2(-8,bar_y,16,2),Color("18252e"))
  draw_rect(Rect2(-8,bar_y,16*float(health)/max_health,2),Color("bd8058") if kind == "ashling" else Color("88aaa9"))
 

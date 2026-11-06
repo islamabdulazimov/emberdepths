@@ -9,6 +9,7 @@ var combat: Node2D
 var encounter: Node2D
 var combat_zone: Node2D
 var effects: Node2D
+var survival:Node2D
 var equipment_service:Node
 var npcs: Node
 var pause_ui: CanvasLayer
@@ -46,6 +47,8 @@ func _ready() -> void:
  $HUD/Panel.offset_bottom=78
  $HUD/Panel.theme = preload("res://scripts/visuals/art_direction.gd").theme()
  $HUD/Panel/Label.add_theme_font_size_override("font_size",12)
+ $HUD/Panel/Label.clip_text=true
+ $HUD/Panel/Label.max_lines_visible=3
  ambient = CanvasModulate.new()
  add_child(ambient)
  RenderingServer.set_default_clear_color(Color("8aabb0"))
@@ -85,6 +88,7 @@ func _ready() -> void:
  exploration.set_script(preload("res://scripts/exploration.gd"))
  add_child(exploration)
  equipment_service=Node.new();equipment_service.set_script(preload("res://scripts/equipment_service.gd"));add_child(equipment_service)
+ survival=Node2D.new();survival.name="Survival";survival.set_script(preload("res://scripts/survival_service.gd"));add_child(survival)
  npcs=Node.new()
  npcs.name="Residents"
  npcs.set_script(preload("res://scripts/residents.gd"))
@@ -199,6 +203,7 @@ func select_local_player(id: int) -> void:
   interaction.player = player
 
 func remove_player(id: int) -> void:
+ survival.cancel_helper(id);survival.cancel_target(id);survival.intents.erase(id)
  var body = $Players.get_node_or_null(str(id))
  if body != null:
   $Players.remove_child(body)
@@ -285,7 +290,7 @@ func _bind_key(action: String, code: Key) -> void:
 
 
 func ui_blocked() -> bool:
- return pause_open or input_latched or (is_instance_valid(npcs) and npcs.opened)
+ return pause_open or input_latched or (is_instance_valid(player) and player.dead) or (is_instance_valid(npcs) and npcs.opened)
 
 func _process(delta: float) -> void:
  if is_instance_valid(saves) and is_instance_valid(saves.save_button):saves.save_button.get_parent().hide();saves.save_label.hide()

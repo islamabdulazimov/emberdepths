@@ -166,7 +166,7 @@ func selected_definition(body: CharacterBody2D, slot: int) -> Dictionary:
 func primary_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
  var kind: String = selected_definition(body, slot).get("kind", "")
  if body.dead:
-  return "Вы погибли"
+  return "Вы упали"
  if kind == "weapon":
   return "ЛКМ — клинок · дальность 2 блока"
  if kind == "consumable":
@@ -230,7 +230,7 @@ func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> Strin
  var kind: String = definition.get("kind", "")
  if kind == "storage": return main.storage.placement_status(body,cell)
  if kind == "door":
-  if body.dead: return "Вы погибли"
+  if body.dead: return "Вы упали"
   var status: String = main.world.door_placement_status(body,cell,solid_bodies())
   if status != "Можно поставить дверь": return status
   for occupied in main.world.Structures.door_cells(cell):
@@ -240,7 +240,7 @@ func placement_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> Strin
  if kind in ["wall", "torch"]:
   return main.world.decoration_status(body, cell, kind, true)
  if body.dead:
-  return "Вы погибли"
+  return "Вы упали"
  if kind == "solid":
   if main.combat.chest_at(cell) != -1:
    return "Здесь сундук вещей"
@@ -394,7 +394,7 @@ func solid_bodies() -> Array:
  return result
 
 func door_toggle_status(body: CharacterBody2D, cell: Vector2i, slot: int) -> String:
- if body.dead: return "Вы погибли"
+ if body.dead: return "Вы упали"
  if slot < 0 or slot >= Inventory.HOTBAR_COUNT or inventory_for(int(str(body.name))).item_at(slot)!="": return "Выбери пустой слот для двери"
  var door = main.world.door_at(cell)
  if door == null: return "Здесь нет двери"
@@ -446,7 +446,7 @@ func _check_torch_support() -> void:
 func craft(id: int, recipe_id: String) -> String:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null or body.dead:
-  return "Нельзя создавать предметы после смерти"
+  return "Нельзя создавать предметы в упавшем состоянии"
  var inventory = inventory_for(id)
  var status: String = inventory.craft_preview(recipe_id).status
  if status != "Можно создать":

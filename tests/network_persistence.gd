@@ -30,10 +30,8 @@ func run() -> void:
     main.items.inventory_for(id).add("stone_pick", 1)
     body.health = 63
     body.unclothed = true
-    var contents = load("res://scripts/inventory.gd").new()
-    contents.add("torch", 2)
-    main.combat.set_chest(7, {"owner": id, "profile": body.profile_id, "position": Vector2(1640, 340), "contents": contents.to_data()})
-    main.combat.chest_changed.emit(7, main.combat.chest_data(7, true))
+    main.survival.recovery[body.profile_id]=[{"item":"torch","count":2}]
+    main.survival.recover_inventory(id)
     main.items.inventory_changed.emit(id))
   if role == "host_read":
    check_result(main.saves.load_now(), "New host process loads world and offline character ledger")
@@ -74,11 +72,7 @@ func run() -> void:
    var inventory = main.items.local_inventory()
    check_result(main.player.health == 63 and main.player.unclothed, "Stable profile restores health and appearance")
    check_result(inventory.count_item("stone") == (12 if role == "restart" else 13) and inventory.count_item("stone_pick") == 1, "Reconnection restores exact server inventory without duplication")
-   var owned := false
-   for chest in main.combat.chests.values():
-    if chest.owner_profile == main.saves.profile_id:
-     owned = chest.owner_id == main.multiplayer.get_unique_id() and chest.contents[0].item == "torch" and chest.contents[0].count == 2
-   check_result(owned, "Death chest ownership rebinds to new peer ID")
+   check_result(main.combat.chests.is_empty() and inventory.count_item("torch")==2,"recovered owner items survive reconnect without duplication")
    if role != "first":
     check_result(main.player.position.x > main.world.spawn_position().x + 20 and main.interaction.selected_slot == 1, "Position and selected slot survive reconnect")
    if role == "restart":

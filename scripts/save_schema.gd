@@ -45,6 +45,7 @@ static func life(value: Variant, width: int, depth: int) -> bool:
  if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
   return false
  if not scalar(value.get("roll_cooldown",0),0,preload("res://data/battle.gd").ROLL.cooldown) or not scalar(value.get("guard_cooldown",0),0,preload("res://data/equipment.gd").SHIELD.recovery):return false
+ if not integer(value.get("money",0),0,preload("res://data/survival.gd").MAX_MONEY) or not integer(value.get("recovery_count",0),0,1000000000) or not scalar(value.get("help_progress",0),0,1) or not scalar(value.get("revive_immunity",0),0,1.5):return false
  if value.has("equipment") and not preload("res://data/equipment.gd").valid(value.equipment):return false
  if value.has("appearance") and not preload("res://data/appearance.gd").valid(value.appearance): return false
  if not integer(value.get("max_health", 100), 1, 1000000) or not integer(value.health, 0, int(value.get("max_health", 100))) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
@@ -64,7 +65,7 @@ static func life(value: Variant, width: int, depth: int) -> bool:
 static func validate(value: Variant) -> String:
  if not value is Dictionary or not value.has_all(["format", "generator", "host_profile", "world", "profiles", "drops", "combat", "next_drop"]):
   return "Неполное сохранение"
- if not integer(value.get("combat_rules",1),1,2):return "Неподдерживаемые правила боя"
+ if not integer(value.get("combat_rules",1),1,3):return "Неподдерживаемые правила боя"
  if value.format != 1 or value.generator not in [1,2,3]:
   return "Неподдерживаемая версия сохранения или генератора"
  var world: Variant = value.world
@@ -156,12 +157,14 @@ static func validate(value: Variant) -> String:
   return "Неверные часы или спавн"
  if not combat.entities is Dictionary or combat.entities.size() > 256 or not combat.chests is Dictionary or combat.chests.size() > 512 or not combat.players is Dictionary or not combat.players.is_empty():
   return "Неверные существа или сундуки"
+ if not economy(combat.get("economy",{}),width,depth):return "Неверные деньги или очередь возврата"
  for id in combat.entities:
   var entity: Variant = combat.entities[id]
   if not integer(id, 1, int(combat.next_entity) - 1) or not entity is Dictionary or not entity.has_all(["kind", "position", "velocity", "health", "anchor", "grace", "clock", "hit_stun"]):
    return "Неполное существо"
   if not Rules.ENEMIES.has(entity.kind):
    return "Неизвестное существо"
+  if not integer(entity.get("money",0),0,preload("res://data/survival.gd").MAX_MONEY):return "Неверные деньги у существа"
   if not entity.get("site_guard",false) is bool: return "Неверный страж руин"
   var raw_base: Variant = entity.get("base_health", Rules.ENEMIES[entity.kind].health)
   var raw_players: Variant = entity.get("scaling_players", 1)
@@ -185,3 +188,23 @@ static func validate(value: Variant) -> String:
   if not point(chest.position, width, depth) or not integer(chest.owner, 1, 2147483647) or not hex_id(chest.profile, 32) or not inventory(chest.contents):
    return "Неверный сундук"
  return ""
+
+
+static func economy(value:Variant,width:int,depth:int) -> bool:
+ if not value is Dictionary:return false
+ var coins:Variant=value.get("coins",{})
+ if not coins is Dictionary or coins.size()>4096 or not integer(value.get("next_id",1),1,1000000000):return false
+ for id in coins:
+  var c:Variant=coins[id]
+  if not integer(id,1,int(value.get("next_id",1))-1) or not c is Dictionary or not c.has_all(["amount","position","velocity","age"]):return false
+  if not integer(c.amount,1,preload("res://data/survival.gd").MAX_MONEY) or not point(c.position,width,depth) or not velocity(c.velocity) or not scalar(c.age,0,1e12):return false
+ var recovery:Variant=value.get("recovery",{})
+ if not recovery is Dictionary or recovery.size()>576:return false
+ var total:=0
+ for profile in recovery:
+  if not hex_id(profile,32) or not recovery[profile] is Array:return false
+  total+=recovery[profile].size()
+  if total>20000:return false
+  for stack in recovery[profile]:
+   if not stack is Dictionary or not stack.has_all(["item","count"]) or not stack.item is String or not Items.DEFINITIONS.has(stack.item) or not integer(stack.count,1,Items.stack_limit(stack.item)):return false
+ return true

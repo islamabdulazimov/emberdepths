@@ -211,6 +211,7 @@ func _capture_peer(peer_id: int) -> void:
  profiles[id] = {"key_hash": digest, "inventory": main.items.inventory_for(peer_id).to_data(), "life": main.combat.player_data(body), "selected": selected}
  if body.fighter.mode=="block":profiles[id].life.guard_cooldown=preload("res://data/equipment.gd").SHIELD.recovery
  profiles[id].life.erase("action") # Combat input is transient, never resumed by loading.
+ profiles[id].life["help_progress"]=0.0
  profiles[id].life["medicine_progress"] = 0.0 # Pending self-use is never committed by loading/rejoining.
 
 func authorize(id: String, key: String) -> String:
@@ -241,6 +242,7 @@ func attach_peer(peer_id: int, id: String, key: String) -> int:
   if chest.owner_profile == id:
    chest.owner_id = peer_id
    main.combat.chest_changed.emit(chest_id, main.combat.chest_data(chest_id, true))
+ main.survival.recovery_dirty[peer_id]=true
  return int(profiles[id].get("selected", 0))
 
 func detach_peer(peer_id: int) -> void:
@@ -255,7 +257,7 @@ func checkpoint() -> void:
 func capture() -> Dictionary:
  for peer_id in peer_profiles:
   _capture_peer(peer_id)
- var combat: Dictionary = main.combat.snapshot(true)
+ var combat: Dictionary = main.combat.snapshot(true,true)
  combat.players = {}
  for enemy in combat.entities.values():
   for key in ["attack_state","attack_elapsed","attack_facing","attack_target"]: enemy.erase(key)
@@ -263,7 +265,7 @@ func capture() -> Dictionary:
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "combat_rules":2, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "combat_rules":3, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -273,7 +275,7 @@ func _restore_life(peer_id: int, life: Dictionary) -> void:
  body.medicine_progress = 0
  body.medicine_slot = -1
  body.medicine_latch = -1
- var relocated: bool = not body.dead and not main.world.character_fits(body.position)
+ var relocated: bool = not main.world.character_fits(body.position)
  if relocated:
   body.position = main.world.safe_spawn_position()
   body.velocity = Vector2.ZERO
@@ -283,7 +285,7 @@ func _restore_life(peer_id: int, life: Dictionary) -> void:
   if relocated:
    restore_notice += " · точка занята блоком, выбрана безопасная"
   elif body.dead:
-   restore_notice += " · сохранена смерть, ожидается возрождение"
+   restore_notice += " · сохранено упавшее состояние; выберите помощь или возрождение"
   var camera: Camera2D = body.get_node("Camera2D")
   body.reset_physics_interpolation()
   camera.align()
@@ -297,6 +299,9 @@ func restore(state: Dictionary) -> String:
   return error
  if state.host_profile != profile_id or state.profiles[profile_id].key_hash != profile_key.sha256_text():
   return "Мир принадлежит другому локальному профилю"
+ state=preload("res://scripts/death_migration.gd").upgrade(state)
+ error=Schema.validate(state)
+ if error!="":return error
  main.encounter.cancel_for_load()
  main.world.generator_version = int(state.generator)
  main.world.world_seed = state.world.seed
@@ -447,13 +452,18 @@ func load_now() -> bool:
   status = "Мир не загружен. Файлы сохранены, автозапись заблокирована: " + result.error
   return false
  # Keep original bytes before the first rules upgrade, in addition to rotating .bak.
- if int(result.state.get("combat_rules",1))<2:
+ if int(result.state.get("combat_rules",1))<3:
   var original:=save_path+".pre-adventure.original"
   var source_path:=save_path+".bak" if backup else save_path
   if not FileAccess.file_exists(original) and DirAccess.copy_absolute(ProjectSettings.globalize_path(source_path),ProjectSettings.globalize_path(original))!=OK:
    write_blocked=true
    status="Не удалось сохранить оригинал перед обновлением правил; загрузка отменена"
    return false
+ if preload("res://scripts/death_migration.gd").required(result.state):
+  var death_original:=save_path+".pre-death-v3.original"
+  var death_source:=save_path+".bak" if backup else save_path
+  if not FileAccess.file_exists(death_original) and DirAccess.copy_absolute(ProjectSettings.globalize_path(death_source),ProjectSettings.globalize_path(death_original))!=OK:
+   write_blocked=true;status="Не удалось сохранить исходный файл перед переносом вещей";return false
  var error := restore(result.state)
  if error != "":
   write_blocked = true

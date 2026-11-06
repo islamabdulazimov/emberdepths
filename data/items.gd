@@ -21,6 +21,7 @@ const DEFINITIONS := {
  "wood_chest": {"name": "Деревянный сундук", "kind": "storage", "icon": "res://assets/icons/chest.svg"},
  "wood_sword":{"name":"Меч из корневой древесины","description":"Простой резной клинок. Лёгкий удар, малая цена ошибки.","kind":"weapon","equip_slot":"weapon","stack":1,"damage":18,"poise_damage":12,"reach":30.0,"swing_time":0.47},
  "wood_shield":{"name":"Щит из корневой древесины","description":"R: короткий фронтальный блок. Часть урона проходит; после блока нужно восстановиться и отпустить R.","kind":"equipment","equip_slot":"shield","stack":1,"block_percent":75},
+ "spark_binding":{"name":"Искровая перевязь","description":"Удерживай E рядом с упавшим товарищем 4 с. Расходуется только при успешной помощи. Возвращает 30% ОЗ и даёт защиту на 1,5 с.","kind":"rescue","stack":20},
  "traveler_knot":{"name":"Узел странника","description":"Экипируй в слот способности: Shift даёт перекат. Снятие отключает его; восстановление не сбрасывается.","kind":"equipment","equip_slot":"ability","ability":"roll","stack":1},
  "wood_helm":{"name":"Деревянный шлем","description":"Лёгкие резные пластины сохраняют обзор.","kind":"equipment","equip_slot":"head","stack":1,"armor":1},
  "wood_armor":{"name":"Деревянная кираса","description":"Скреплённая медью кора. Небольшая защита, без штрафа к движению.","kind":"equipment","equip_slot":"body","stack":1,"armor":1},

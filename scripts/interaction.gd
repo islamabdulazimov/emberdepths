@@ -113,19 +113,14 @@ func _process(delta: float) -> void:
  if get_parent().inventory_ui.opened:
   status = "Инвентарь и крафт открыты"
  var combat = get_parent().combat
- var health_text := ""
- if player.dead:
-  health_text = "Вы погибли · Возрождение %.1f с" % player.respawn_remaining
+ if player.dead:status="Вы упали · вещи сохранены"
  var grave_text := ""
- if player.last_chest_position.x >= 0:
-  var grave: Vector2i = world.cell_at(player.last_chest_position)
-  grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
- var location: Vector2i = world.cell_at(player.position)
- label.text = "%s · %s\n%s%s"%[combat.time_label(),definition.get("name","Пустой слот"),status,grave_text]
+ label.text = "%s\n%s\n%s%s"%[combat.time_label(),definition.get("name","Пустой слот"),status,grave_text]
  label.tooltip_text = "A/D — движение · Space — прыжок\nЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — панель · Esc — инвентарь · Shift — перекат · F — парирование"
  queue_redraw()
 
 func _draw() -> void:
+ if is_instance_valid(player) and player.dead:return
  if not is_instance_valid(world):
   return
  if is_instance_valid(player) and (get_parent().items.selected_definition(player,selected_slot).get("kind","") == "consumable" or player.medicine_latch == selected_slot): return

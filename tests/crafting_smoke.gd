@@ -87,7 +87,7 @@ func run() -> void:
  check_result(second.wall_at(cell) == -1, "Background changes replay from journal")
  second.queue_free()
  main.inventory_ui.toggle()
- check_result(main.inventory_ui.crafting.visible and main.inventory_ui.recipe_buttons.size() == 17, "Inventory exposes existing recipes plus wooden gear and roll ability")
+ check_result(main.inventory_ui.crafting.visible and main.inventory_ui.recipe_buttons.size() == 18, "Inventory exposes existing recipes plus wooden gear and roll ability")
  # Surface/depth contrast is local to camera, not a day/night system.
  player.position.y = (world.heights[96] + 20) * 16
  main._process(0.0)

@@ -2,7 +2,6 @@ extends RefCounted
 # One provisional difficulty. No hunger, thirst or selectable modes.
 const MAX_HEALTH := 100
 const HURT_IMMUNITY := 0.9
-const RESPAWN_DELAY := 1.8
 const RESPAWN_IMMUNITY := 3.0
 const DAY_SECONDS := 180.0
 const NIGHT_SECONDS := 60.0

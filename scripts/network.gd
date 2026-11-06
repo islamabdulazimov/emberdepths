@@ -23,6 +23,7 @@ var main: Node2D
 func _ready() -> void:
  main = get_parent()
  main.encounter.changed.connect(_boss_changed)
+ main.survival.coin_changed.connect(_coin_changed)
  main.combat.entity_changed.connect(_entity_changed)
  main.combat.chest_changed.connect(_chest_changed)
  main.combat.player_changed.connect(_player_changed)
@@ -657,3 +658,25 @@ func sync_equipment_commit(id:int,life:Dictionary,inventory_data:Array) -> void:
  main.items.local_inventory().load_data(inventory_data)
  main.combat.apply_player_state(id,life)
  main.inventory_ui.refresh()
+
+
+func _coin_changed(id:int,data:Dictionary) -> void:
+ if active and connected and multiplayer.is_server():_broadcast("sync_coin",[id,data])
+@rpc("authority","call_remote","reliable",0)
+func sync_coin(id:int,data:Dictionary) -> void:
+ if not active or not connected:return
+ main.survival.set_coin(id,data)
+func help_local(target:int,held:bool) -> void:
+ if not active or (connected and multiplayer.is_server()):main.survival.intent(int(str(main.player.name)),target,held)
+ elif connected:request_help.rpc_id(1,target,held)
+@rpc("any_peer","call_remote","reliable",0)
+func request_help(target:int,held:bool) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.survival.intent(id,target,held)
+func respawn_local() -> void:
+ if not active or (connected and multiplayer.is_server()):main.survival.respawn_request(int(str(main.player.name)))
+ elif connected:request_respawn.rpc_id(1)
+@rpc("any_peer","call_remote","reliable",0)
+func request_respawn() -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.survival.respawn_request(id)

@@ -30,3 +30,7 @@ show actual renderers, with simulation stopped for inspection, not measured FPS.
 Body/action timing comes from existing gameplay; presentation never creates hits.
 
 - tools/build_ability_art.py: original CC0 knotted cord ability icon and world pickup; one new item, no replacement of existing art.
+
+- tools/build_survival_art.py:40 original downed-body sheets (12 breathing poses),
+  three matching armor overlays, coin and spark-binding icons. Same CC0 terms.
+  Bodies remain visible; the new state uses these textures, not the old death echo.

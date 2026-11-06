@@ -50,11 +50,12 @@ func spawn_entity(kind: String, at: Vector2, anchor: Vector2 = Vector2.ZERO) -> 
 
 func entity_data(id: int) -> Dictionary:
  var body = entities[id]
- return {"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun, "attack_target":body.attack_target,"site_guard":body.site_guard,"attack_state":body.attack_state,"attack_elapsed":body.attack_elapsed,"attack_facing":body.attack_facing}
+ return {"money":body.money,"kind": body.kind, "position": body.position, "velocity": body.velocity, "health": body.health, "base_health": body.base_health, "max_health": body.max_health, "scaling_players": body.scaling_players, "anchor": body.anchor, "grace": body.grace, "clock": body.clock, "hit_stun": body.hit_stun, "attack_target":body.attack_target,"site_guard":body.site_guard,"attack_state":body.attack_state,"attack_elapsed":body.attack_elapsed,"attack_facing":body.attack_facing}
 
-func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
+func set_entity(id: int, data: Dictionary, visual_remove: bool = false, refund_money:bool=true) -> void:
  if data.is_empty():
   if entities.has(id):
+   if refund_money and authoritative() and entities[id].money>0:main.survival.spawn_money(entities[id].money,entities[id].position)
    if visual_remove and is_instance_valid(main.get("effects")):
     main.effects.creature_death(entities[id].kind,entities[id].position,entities[id].visual_facing)
     main.effects.burst("spirit" if entities[id].kind == "spirit" else "death",entities[id].position+Vector2(0,-5))
@@ -75,6 +76,7 @@ func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
  var body = entities[id]
  if not new_entity and body.health > int(data.health):
   body.hurt_flash = 0.16
+ body.money=int(data.get("money",0))
  body.base_health = int(data.get("base_health", Rules.ENEMIES[data.kind].health))
  body.scaling_players = int(data.get("scaling_players", 1))
  body.max_health = int(data.get("max_health", body.base_health))
@@ -144,7 +146,7 @@ func line_clear(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
 
 func player_data(body: CharacterBody2D) -> Dictionary:
  var state: Dictionary = body.resources.snapshot()
- state.merge({"roll_cooldown":body.roll_cooldown,"guard_cooldown":body.guard_cooldown,"equipment":body.equipment.duplicate(),"held_item":body.held_item,"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
+ state.merge({"money":body.money,"recovery_count":body.recovery_count,"help_progress":body.help_progress,"revive_immunity":body.revive_immunity,"roll_cooldown":body.roll_cooldown,"guard_cooldown":body.guard_cooldown,"equipment":body.equipment.duplicate(),"held_item":body.held_item,"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
  state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
  return state
 
@@ -152,9 +154,13 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  var body = main.get_node("Players").get_node_or_null(str(id))
  if body == null:
   return
- if body.visual_initialized and data.dead and not body.dead:main.effects.hero_death(body)
+ var was_downed:bool=body.dead
  var changed_life: bool = body.life_revision != int(data.revision)
  var healed: int = maxi(0,int(data.health)-body.health) if not changed_life else 0
+ body.money=int(data.get("money",0))
+ body.recovery_count=int(data.get("recovery_count",0))
+ body.help_progress=float(data.get("help_progress",0))
+ body.revive_immunity=float(data.get("revive_immunity",0))
  body.profile_id = data.get("profile", body.profile_id)
  body.since_hurt = data.get("since_hurt", 0.0)
  body.regen_fraction = data.get("regen_fraction", 0.0)
@@ -170,13 +176,14 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  body.held_item=str(data.get("held_item",""))
  body.appearance=preload("res://data/appearance.gd").clean(data.get("appearance",body.appearance))
  body.dead = data.dead
+ if was_downed and not body.dead and main.player==body:main.input_latched=true
  body.unclothed = data.unclothed
  body.hurt_immunity = data.immunity
  body.respawn_remaining = data.respawn
  body.last_chest_position = data.last_chest
  body.life_revision = data.revision
- body.visible = not body.dead
- body.get_node("Collision").set_deferred("disabled", body.dead)
+ body.visible = true
+ body.get_node("Collision").set_deferred("disabled", false)
  if changed_life:
   body.position = data.position
   body.velocity = data.velocity
@@ -189,8 +196,9 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  if not authoritative() or amount <= 0:
   return false
  var body = main.get_node("Players").get_node_or_null(str(id))
- if body == null or body.dead or ((body.hurt_immunity > 0.0 or body.fighter.roll_invulnerable()) and not bypass_immunity):
+ if body == null or body.dead or body.revive_immunity>0 or ((body.hurt_immunity > 0.0 or body.fighter.roll_invulnerable()) and not bypass_immunity):
   return false
+ main.survival.cancel_helper(id)
  main.equipment_service.finish_block(body)
  body.fighter.interrupt()
  body.swing_remaining = 0
@@ -210,32 +218,23 @@ func damage_player(id: int, amount: int, source: Vector2, bypass_immunity: bool 
  return true
 
 func _kill(body: CharacterBody2D) -> void:
- main.effects.hero_death(body)
- var id := int(str(body.name))
- body.fighter.reset()
- body.dead = true
- body.unclothed = true
- body.respawn_remaining = Rules.RESPAWN_DELAY
- body.life_revision += 1
- body.velocity = Vector2.ZERO
- body.visible = false
- body.get_node("Collision").set_deferred("disabled", true)
- var chest_id := next_chest_id
- next_chest_id += 1
- var at: Vector2 = body.position
- at.x = clampf(at.x, 8.0, main.world.world_width * 16 - 8)
- at.y = clampf(at.y, 16.0, main.world.world_depth * 16 - 16)
- var inventory = main.items.inventory_for(id)
- set_chest(chest_id, {"owner": id, "profile": body.profile_id, "position": at, "contents": inventory.to_data(),"equipment":body.equipment.duplicate()})
- body.equipment=preload("res://data/equipment.gd").empty()
- inventory.load_data([])
- main.items.inventory_changed.emit(id)
- body.last_chest_position = at
- chest_changed.emit(chest_id, chest_data(chest_id, true))
- if main.player == body and is_instance_valid(main.inventory_ui) and main.inventory_ui.opened:
-  main.inventory_ui.toggle()
+ var id:=int(str(body.name))
+ main.survival.cancel_helper(id);main.survival.cancel_target(id)
+ body.fighter.reset();body.dead=true;body.respawn_remaining=0
+ body.revive_immunity=0;body.life_revision+=1;body.velocity=Vector2.ZERO
+ body.move_command=0;body.jump_command=false;body.swing_remaining=0;body.work_remaining=0
+ body.position=main.survival.safe_position(body.position)
+ body.visible=true;body.get_node("Collision").set_deferred("disabled",false)
+ var lost:=floori(body.money*preload("res://data/survival.gd").DEATH_SHARE)
+ if lost>0 and main.survival.spawn_money(lost,body.position)!=-1:body.money-=lost
+ if main.player==body:
+  main.input_latched=true
+  if is_instance_valid(main.inventory_ui) and main.inventory_ui.opened:main.inventory_ui.toggle()
 
 func respawn(body: CharacterBody2D) -> void:
+ main.survival.cancel_target(int(str(body.name)))
+ main.survival.cancel_helper(int(str(body.name)))
+ body.revive_immunity=0
  body.fighter.reset()
  body.medicine_progress = 0
  body.medicine_slot = -1
@@ -256,32 +255,9 @@ func respawn(body: CharacterBody2D) -> void:
  body.get_node("Collision").set_deferred("disabled", false)
  player_changed.emit(int(str(body.name)), player_data(body))
 
-func break_chest(body: CharacterBody2D, cell: Vector2i) -> bool:
- if not authoritative() or body.dead or not main.world.in_reach(body, cell):
-  return false
- var id := chest_at(cell)
- if id == -1 or not line_clear(body.position + Vector2(0, -5), chests[id].position):
-  return false
- var chest = chests[id]
- var at: Vector2 = chest.position
- var contents: Array = chest.contents.duplicate(true)
- for item in chest.equipment.values():
-  if item!="":contents.append({"item":item,"count":1})
- var owner_id: int = chest.owner_id
- set_chest(id, {})
- chest_changed.emit(id, {})
- var owner = main.get_node("Players").get_node_or_null(str(owner_id))
- if owner != null:
-  owner.last_chest_position = Vector2(-1, -1)
-  for remaining in chests.values():
-   if remaining.owner_id == owner_id:
-    owner.last_chest_position = remaining.position
-  player_changed.emit(owner_id, player_data(owner))
- for slot in contents:
-  if slot.count > 0:
-   main.items.spawn_drop(slot.item, slot.count, at + Vector2(0, -6))
- spawn_entity("spirit", at, at)
- return true
+func break_chest(_body: CharacterBody2D, _cell: Vector2i) -> bool:
+ # Legacy chests are recovered by the validated save migration, never destroyed.
+ return false
 
 func resolve_attack(id: int, direction: Vector2, active_strike: bool = false) -> void:
  if not authoritative():
@@ -306,7 +282,7 @@ func resolve_attack(id: int, direction: Vector2, active_strike: bool = false) ->
   if offset.length() <= float(profile.reach) + size.x/2 and (offset.length() < 1 or offset.normalized().dot(direction) >= float(profile.get("arc_dot",0.2))) and line_clear(origin, target):
    hits["enemy:%d" % target_id] = true
    hit_entity(target_id, int(profile.damage), direction)
- if is_instance_valid(main.encounter.actor):
+ if is_instance_valid(main.encounter.actor) and not main.encounter.withdrawn.has(body.profile_id):
   var boss = main.encounter.actor
   var target: Vector2 = boss.position + Vector2(0, -29)
   var offset: Vector2 = target - origin
@@ -342,6 +318,7 @@ func hit_entity(id: int, damage: int, direction: Vector2) -> bool:
   var loot: String = Rules.ENEMIES[enemy.kind].loot
   set_entity(id, {},true)
   entity_changed.emit(id, {})
+  if defeated_kind!="spirit":main.survival.spawn_money(preload("res://data/survival.gd").MOB_REWARD,at)
   if loot != "":
    main.items.spawn_drop(loot, 1, at)
   if is_instance_valid(main.encounter): main.encounter.register_kill(defeated_kind)
@@ -372,7 +349,7 @@ func receive_attack(id: int, amount: int, source: Vector2, attacker: Node2D, par
  var body = main.get_node("Players").get_node_or_null(str(id))
  if not authoritative() or body == null or body.dead: return "miss"
  if body.fighter.roll_invulnerable(): return "dodged"
- if body.hurt_immunity > 0: return "immune"
+ if body.hurt_immunity > 0 or body.revive_immunity>0: return "immune"
  var facing_hit: bool = radial or (source.x-body.position.x)*body.facing >= -4
  if parryable and facing_hit and body.fighter.parry_open():
   body.fighter.parried()
@@ -413,6 +390,8 @@ func _physics_process(delta: float) -> void:
  var alive: Array = []
  for body in main.get_node("Players").get_children():
   body.hurt_immunity = maxf(0.0, body.hurt_immunity - delta)
+  var revival_cooling:bool=body.revive_immunity>0
+  body.revive_immunity=maxf(0,body.revive_immunity-delta)
   var defense_cooling:bool=body.roll_cooldown>0 or body.guard_cooldown>0
   body.roll_cooldown=maxf(0,body.roll_cooldown-delta)
   body.guard_cooldown=maxf(0,body.guard_cooldown-delta)
@@ -424,14 +403,13 @@ func _physics_process(delta: float) -> void:
    if cooldown_changed and body.resource_sync <= 0:
     body.resource_sync = 0.1
     player_changed.emit(int(str(body.name)),player_data(body))
-   body.respawn_remaining -= delta
-   if body.respawn_remaining <= 0:
-    respawn(body)
+   if body.position.y>main.world.world_depth*16:
+    body.position=main.survival.safe_position(body.position);body.velocity=Vector2.ZERO;body.life_revision+=1;player_changed.emit(int(str(body.name)),player_data(body))
    continue
   alive.append(body)
   body.since_hurt += delta
   tick_fighter(body,delta)
-  if (defense_cooling or cooldown_changed) and body.resource_sync <= 0:
+  if (revival_cooling or defense_cooling or cooldown_changed) and body.resource_sync <= 0:
    body.resource_sync = 0.1
    player_changed.emit(int(str(body.name)), player_data(body))
  for id in entities.keys():
@@ -533,8 +511,8 @@ func _try_spawn(alive: Array) -> bool:
    return true
  return false
 
-func snapshot(include_contents: bool = false) -> Dictionary:
- var state := {"time": world_time, "entities": {}, "chests": {}, "players": {}}
+func snapshot(include_contents: bool = false, for_save:bool=false) -> Dictionary:
+ var state := {"economy":main.survival.snapshot(for_save),"time": world_time, "entities": {}, "chests": {}, "players": {}}
  for id in entities:
   state.entities[id] = entity_data(id)
  for id in chests:
@@ -544,8 +522,9 @@ func snapshot(include_contents: bool = false) -> Dictionary:
  return state
 
 func apply_snapshot(state: Dictionary) -> void:
+ main.survival.restore(state.get("economy",{}))
  for id in entities.keys():
-  set_entity(id, {})
+  set_entity(id, {},false,false)
  for id in chests.keys():
   set_chest(id, {})
  world_time = state.time
@@ -557,13 +536,14 @@ func apply_snapshot(state: Dictionary) -> void:
   apply_player_state(id, state.players[id])
 
 func motion_snapshot() -> Dictionary:
- var state := {"time": world_time, "poses": {}, "encounter": main.encounter.motion_snapshot()}
+ var state := {"coin_positions":main.survival.motion(),"time": world_time, "poses": {}, "encounter": main.encounter.motion_snapshot()}
  for id in entities:
   state.poses[id] = [entities[id].position, entities[id].velocity]
  return state
 
 func apply_motion(state: Dictionary) -> void:
  world_time = state.time
+ main.survival.apply_motion(state.get("coin_positions",{}))
  remote_targets = state.poses
  if state.has("encounter"): main.encounter.apply_motion(state.encounter)
 
@@ -576,13 +556,12 @@ func _process(delta: float) -> void:
    entities[id].velocity = remote_targets[id][1]
    entities[id].night = is_night()
  for body in main.get_node("Players").get_children():
+  body.revive_immunity=maxf(0,body.revive_immunity-delta)
   body.hurt_immunity = maxf(0, body.hurt_immunity - delta)
   body.roll_cooldown=maxf(0,body.roll_cooldown-delta)
   body.guard_cooldown=maxf(0,body.guard_cooldown-delta)
   body.fighter.advance(delta)
   body.fighter.complete_tick()
-  if body.dead:
-   body.respawn_remaining = maxf(0, body.respawn_remaining - delta)
 
 
 func connected_player_count() -> int:

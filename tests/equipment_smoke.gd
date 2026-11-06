@@ -64,19 +64,14 @@ func run() -> void:
  main.player.fighter.reset();main.player.equipment={"weapon":"wood_sword","head":"wood_helm","body":"wood_armor","legs":"wood_legs","shield":"wood_shield"};main.player.health=100;main.player.hurt_immunity=0
  for i in range(30):bag.slots[i]={"item":"dirt","count":99}
  main.combat.damage_player(1,1000,at,true)
- check(main.player.dead and main.player.equipment==Gear.empty() and bag.count_item("dirt")==0,"death removes worn gear and full inventory")
- var chest=main.combat.chests.values()[0]
- check(chest.contents.size()==30 and chest.equipment.weapon=="wood_sword" and chest.equipment.shield=="wood_shield","death chest retains full bag plus five gear pieces")
+ check(main.player.dead and main.player.equipment.weapon=="wood_sword" and bag.count_item("dirt")==2970,"downed keeps full bag and equipped sword")
+ check(main.combat.chests.is_empty(),"downed creates no death chest")
  var death_save:Dictionary=main.saves.capture()
- check(preload("res://scripts/save_schema.gd").validate(death_save)=="" and main.saves.restore(death_save)=="","death chest gear survives save roundtrip")
- main.combat.respawn(main.player);check(main.player.equipment==Gear.empty(),"respawn does not grant another starter set")
- var fresh_bag=main.items.local_inventory();fresh_bag.add("wood_helm",1);main.equipment_service.move(1,0,"head")
- check(main.player.unclothed and main.player.equipment.head=="wood_helm","equipping one piece after death never restores free base clothing")
- var chest_cell:Vector2i=main.world.cell_at(main.combat.chests.values()[0].position)
- check(main.combat.break_chest(main.player,chest_cell),"saved full death chest can be broken")
- var recovered:={}
- for drop in main.items.drops.values():recovered[drop.item_id]=int(recovered.get(drop.item_id,0))+drop.count
- check(recovered.get("dirt",0)==2970 and recovered.get("wood_sword",0)==1 and recovered.get("wood_shield",0)==1 and recovered.get("wood_armor",0)==1 and recovered.get("wood_legs",0)==1 and recovered.get("wood_helm",0)==1,"breaking chest recovers all thirty stacks and five gear pieces exactly once")
+ check(preload("res://scripts/save_schema.gd").validate(death_save)=="" and main.saves.restore(death_save)=="","downed gear survives save roundtrip")
+ main.combat.respawn(main.player)
+ check(main.player.equipment.weapon=="wood_sword" and main.player.equipment.head=="wood_helm","respawn preserves worn gear")
+ check(not main.player.unclothed and main.items.local_inventory().count_item("dirt")==2970,"respawn retains clothing and all thirty stacks")
+ check(not main.combat.break_chest(main.player,Vector2i(96,21)),"obsolete chest breaking cannot release a spirit")
  var inventory=preload("res://scripts/inventory.gd").new();inventory.add("wood",99);inventory.slots[10]={"item":"wood","count":95}
  check(inventory.quick_to(inventory,0,range(10,30)) and inventory.slots[10].count==99 and inventory.slots[11].count==95 and inventory.slots[0].count==0,"Shift move fills partial stack then empty cell in one operation")
  for i in range(30):inventory.slots[i]={"item":"dirt","count":99}

@@ -108,11 +108,7 @@ func run() -> void:
  player.hurt_immunity = 0
  service.medicine_step(player,0,0.4)
  main.combat.damage_player(1,10000,player.position,true)
- var in_chest := 0
- for chest in main.combat.chests.values():
-  for item in chest.contents:
-   if item.item == "spark_balm": in_chest += item.count
- check_result(player.dead and player.medicine_progress == 0 and in_chest == 2,"Death cancels use and moves unconsumed portions into the death chest")
+ check_result(player.dead and player.medicine_progress==0 and service.local_inventory().count_item("spark_balm")==2,"downing cancels use and retains unconsumed portions")
  main.combat._physics_process(0.2)
  check_result(is_equal_approx(player.medicine_cooldown,0.4),"Cooldown continues ticking while waiting to respawn")
  main.combat.respawn(player)

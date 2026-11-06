@@ -3,6 +3,10 @@ from pathlib import Path
 import sys
 root=Path(__file__).resolve().parents[1]
 combat_mode="--combat" in sys.argv
+if combat_mode:
+ import runpy
+ runpy.run_path(str(root/"tests/run_survival_network.py"),run_name="__main__")
+ raise SystemExit(0)
 crafting_mode="--crafting" in sys.argv
 logging_mode="--logging" in sys.argv
 healing_mode="--healing" in sys.argv
