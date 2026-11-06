@@ -7,6 +7,7 @@ var door_cells: Dictionary = {} # All occupied cells -> bottom cell.
 @export var world_seed: int = 72419
 @export var world_width: int = 192
 @export var world_depth: int = 72
+var npc_records: Dictionary = {}
 var generator_version := 1
 var sites: Array = []
 var site_progress: Dictionary = {}
@@ -22,9 +23,19 @@ var detail: Node2D
 var forest: Node2D
 
 func _ready() -> void:
- if (not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--expanded-world")) and not get_parent().has_meta("combat_test"):
-  configure_expanded()
+ if (not GameApp.selected_world.is_empty() or not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--expanded-world")) and not get_parent().has_meta("combat_test"):
+  var app = get_node_or_null("/root/GameApp")
+  if is_instance_valid(app) and not app.selected_world.is_empty() and not app.selected_world.get("legacy",false):
+   configure_new(app.selected_world.size)
+   world_seed = int(app.selected_world.seed)
+  elif OS.get_cmdline_user_args().has("--expanded-world"): configure_expanded()
+  else: configure_new("small")
  generate()
+func configure_new(size: String = "small") -> void:
+ var d: Dictionary = preload("res://data/world_sizes.gd").DEFINITIONS.get(size,preload("res://data/world_sizes.gd").DEFINITIONS.small)
+ generator_version = 3
+ world_width = int(d.width)
+ world_depth = int(d.depth)
 func configure_expanded() -> void:
  generator_version = 2
  world_width = preload("res://data/world_regions.gd").WIDTH
@@ -89,7 +100,11 @@ func generate() -> void:
  add_child(solid)
  sites.clear()
  site_progress.clear()
- if generator_version == 2:
+ npc_records.clear()
+ if generator_version == 3:
+  sites = preload("res://scripts/world_natural.gd").generate(self)
+  npc_records = preload("res://scripts/world_natural.gd").residents(sites)
+ elif generator_version == 2:
   sites = preload("res://scripts/world_expansion.gd").generate(self)
  else:
   var surface := FastNoiseLite.new()

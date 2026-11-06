@@ -9,12 +9,12 @@ func _process(delta: float) -> void:
  clock += delta
  if clock < 0.5: return
  clock = fmod(clock,0.5)
- if not is_instance_valid(main.network) or not main.combat.authoritative() or main.world.generator_version != 2: return
+ if not is_instance_valid(main.network) or not main.combat.authoritative() or main.world.generator_version < 2: return
  if main.network.stopping or (main.network.active and not main.network.connected): return
  initialize_loot()
  activate_guards()
 func initialize_loot() -> void:
- if not main.combat.authoritative() or main.world.generator_version != 2: return
+ if not main.combat.authoritative() or main.world.generator_version < 2: return
  for site in main.world.sites:
   if main.world.site_progress.has(site.id): continue
   main.world.site_progress[site.id] = {"initialized":true,"guards":0}
@@ -68,7 +68,7 @@ func spawn_safe(kind: String, at: Vector2, players: Array, minimum: float = 112.
   if player.position.distance_to(at) < minimum: return false
  return true
 func activate_guards() -> void:
- if not main.combat.authoritative() or main.world.generator_version != 2: return
+ if not main.combat.authoritative() or main.world.generator_version < 2: return
  var players := alive_players()
  if players.is_empty(): return
  for site in main.world.sites:

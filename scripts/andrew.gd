@@ -280,12 +280,12 @@ func apply(data: Dictionary) -> void:
 
 func _draw() -> void:
  # Indicators use the exact same geometry as damage checks.
- if phase in ["uppercut_windup", "uppercut_active"]:
+ if preload("res://data/presentation.gd").combat_debug and phase in ["uppercut_windup", "uppercut_active"]:
   var zone := attack_rect("uppercut")
   zone.position -= global_position
   draw_rect(zone, Color(1, 0.65, 0.3, 0.13))
   draw_rect(zone, Color("e5a76d"), false, 1)
- if phase in ["spin_windup", "spin_active"]:
+ if preload("res://data/presentation.gd").combat_debug and phase in ["spin_windup", "spin_active"]:
   draw_circle(Vector2(0,-24), float(definition.spin_radius), Color(1,0.55,0.4,0.10))
   draw_arc(Vector2(0,-24), float(definition.spin_radius), 0, TAU, 40, Color("eea083"), 1)
  if indicator_active or phase == "super_impact":
@@ -312,19 +312,23 @@ func _draw() -> void:
  preload("res://scripts/visuals/andrew_art.gd").draw_body(self,pose,phase,visual_hit,visual_clock)
  draw_set_transform_matrix(Transform2D.IDENTITY)
  # Short motion trails are cosmetic; damage still follows the existing phase.
- if phase == "uppercut_active":
+ if preload("res://data/presentation.gd").combat_debug and phase == "uppercut_active":
   draw_arc(Vector2(facing * 13,-39), 28, -1.3 if facing > 0 else PI-0.3, 0.3 if facing > 0 else PI+1.3, 10, Color(1,0.82,0.61,0.4),2)
- if phase == "spin_active":
+ if preload("res://data/presentation.gd").combat_debug and phase == "spin_active":
   draw_arc(Vector2(0,-36), 49, visual_clock, visual_clock + PI * 0.8, 18, Color(1,0.82,0.61,0.4),2)
 
 func _draw_arm(shoulder: Vector2, elbow: Vector2, hand: Vector2, skin: Color) -> void:
  preload("res://scripts/visuals/andrew_rig.gd").arm(self,shoulder,elbow,hand,skin)
 
 func _draw_leg(hip: Vector2, foot: Vector2, skin: Color) -> void:
- var knee := hip.lerp(foot,0.5) + Vector2(3,-1)
- draw_line(hip,knee,Color("18252e"),9)
- draw_line(knee,foot - Vector2(0,2),skin,7)
- draw_rect(Rect2(foot - Vector2(4,3),Vector2(10,3)),Color("293b46"))
+ var knee:=hip.lerp(foot-Vector2(0,2),0.5)+Vector2(3,-1)
+ var rig=preload("res://scripts/visuals/andrew_rig.gd")
+ for layer in range(2):
+  var color:=Color("302c34") if layer==0 else skin
+  var width:=9.0 if layer==0 else 7.0
+  draw_line(hip,knee,color,width);draw_line(knee,foot-Vector2(0,2),color,width)
+  rig.cap(self,hip,width/2,color);rig.cap(self,knee,width/2,color)
+ draw_rect(Rect2(foot-Vector2(4,3),Vector2(10,3)),Color("293b46"))
 
 
 func emit_visual(kind: String, at: Vector2) -> void:
@@ -347,7 +351,7 @@ func _process(delta: float) -> void:
   elif phase == "intro": emit_visual("respawn",position+Vector2(0,-35))
   elif phase == "super_flight": emit_visual("land",position)
   visual_phase = phase
- visual_clock += delta * (2.0 + absf(velocity.x) * 0.13)
+ visual_clock += delta * (absf(velocity.x)*TAU/30.0 if phase=="chase" else 2.0)
  visual_hit = maxf(0, visual_hit - delta)
  var render_time: float = motion_track.advance(phase,phase_elapsed,delta,phase_duration)
  var target_pose := Pose.sample(phase,render_time,phase_duration,visual_clock,velocity.x)

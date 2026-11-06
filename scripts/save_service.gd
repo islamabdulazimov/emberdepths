@@ -2,7 +2,7 @@ extends Node
 const Codec = preload("res://scripts/save_codec.gd")
 const Schema = preload("res://scripts/save_schema.gd")
 const AUTOSAVE_SECONDS := 30.0
-const MAX_FILE_BYTES := 16 * 1024 * 1024
+const MAX_FILE_BYTES := 64 * 1024 * 1024
 var main: Node2D
 var automatic := true
 var profile_name := "default"
@@ -36,6 +36,7 @@ func _ready() -> void:
   profile_key = "0".repeat(64)
   peer_profiles[1] = profile_id
   return
+ if not GameApp.selected_world.is_empty(): profile_name=GameApp.selected_world.profile
  automatic = not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--with-save")
  for arg in OS.get_cmdline_user_args():
   if arg.begins_with("--profile="):
@@ -261,7 +262,7 @@ func capture() -> Dictionary:
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -312,6 +313,8 @@ func restore(state: Dictionary) -> String:
  main.world.restore_doors(state.world.get("doors",{}))
  main.storage.restore(state.world.get("storage",{}))
  main.world.site_progress = state.world.get("sites",{}).duplicate(true)
+ main.world.npc_records=state.world.get("npcs",{}).duplicate(true)
+ main.npcs.sync()
  for anchor in state.world.get("storage_opened",[]):
   if main.storage.chests.has(anchor): main.storage.chests[anchor].opened = true
  main.world.solid.update_internals()
@@ -422,6 +425,7 @@ func save_now() -> bool:
   return false
  elapsed = 0
  var saved_cell: Vector2i = main.world.cell_at(main.player.position)
+ GameApp.touch_world()
  status = "Сохранено в (%d, %d) · %s" % [saved_cell.x, saved_cell.y, Time.get_time_string_from_system()]
  return true
 
@@ -464,7 +468,8 @@ func new_world() -> void:
  main.encounter.reset_run()
  profiles.clear()
  if not OS.get_cmdline_args().has("--script") or OS.get_cmdline_user_args().has("--expanded-world"):
-  main.world.configure_expanded()
+  if OS.get_cmdline_user_args().has("--expanded-world"): main.world.configure_expanded()
+  else: main.world.configure_new(GameApp.selected_world.get("size","small"))
  main.world.world_seed = posmod(main.world.world_seed + 1, 2147483647)
  main.world.generate()
  main.items.inventories.clear()

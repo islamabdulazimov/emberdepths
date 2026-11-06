@@ -2,7 +2,9 @@ config_version=5
 [application]
 config/name="Emberdepths — prototype"
 run/max_fps=240
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/menu.tscn"
+[autoload]
+GameApp="*res://scripts/app_state.gd"
 [display]
 window/vsync/vsync_mode=0
 window/size/viewport_width=960

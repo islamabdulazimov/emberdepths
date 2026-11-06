@@ -35,6 +35,7 @@ func _ready() -> void:
  main.items.chop_started.connect(_chop_started)
  main.items.work_started.connect(_work_started)
  main.items.tree_felled.connect(_tree_felled)
+ main.npcs.changed.connect(_npcs_changed)
  main.items.inventory_changed.connect(_inventory_changed)
  main.items.drop_changed.connect(_drop_changed)
  multiplayer.peer_connected.connect(_peer_joined)
@@ -160,7 +161,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var edits: Array = []
  for cell in main.world.changes:
   edits.append([cell, main.world.changes[cell]])
- bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot(), main.storage.objects_snapshot(),main.world.generator_version)
+ bootstrap.rpc_id(id, main.world.world_seed, main.world.world_width, main.world.world_depth, edits, roster, main.items.snapshot(), main.items.inventory_for(id).to_data(), main.world.wall_changes, main.world.torches.keys(), main.combat.snapshot(true), selected, main.encounter.snapshot(), main.world.tree_snapshot(), main.world.door_snapshot(), main.storage.objects_snapshot(),main.world.generator_version,main.world.npc_records)
  for body in existing:
   var old_id := int(str(body.name))
   if old_id != 1:
@@ -195,12 +196,14 @@ func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.saves.checkpoint()
 
 @rpc("authority", "call_remote", "reliable", 0)
-func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array, door_state: Dictionary, storage_state: Dictionary, generator_version: int = 1) -> void:
+func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Dictionary, drop_state: Dictionary, inventory_data: Array, wall_state: Dictionary, torch_cells: Array, combat_state: Dictionary, selected: int, boss_state: Dictionary, tree_state: Array, door_state: Dictionary, storage_state: Dictionary, generator_version: int = 1, npc_state: Dictionary = {}) -> void:
  main.world.generator_version = generator_version
  main.world.world_seed = seed_value
  main.world.world_width = width
  main.world.world_depth = depth
  main.world.generate()
+ main.world.npc_records=npc_state.duplicate(true)
+ main.npcs.sync()
  for edit in edits:
   main.world.apply_edit(edit[0], edit[1])
  for cell in wall_state:
@@ -221,6 +224,8 @@ func bootstrap(seed_value: int, width: int, depth: int, edits: Array, roster: Di
  main.interaction.selected_slot = selected
  main.encounter.apply(boss_state)
  connected = true
+ if not GameApp.selected_character.is_empty(): main.player.appearance=preload("res://data/appearance.gd").clean(GameApp.selected_character.appearance)
+ request_appearance.rpc_id(1,main.player.appearance)
  status = "Подключён · игроков: %d/4" % roster.size()
 
 @rpc("authority", "call_remote", "reliable", 0)
@@ -583,3 +588,18 @@ func _boss_changed(data: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_boss(data: Dictionary) -> void:
  main.encounter.apply(data)
+
+func _npcs_changed(records: Dictionary) -> void:
+ if active and connected and multiplayer.is_server(): _broadcast("sync_residents",[records])
+@rpc("authority","call_remote","reliable",0)
+func sync_residents(records: Dictionary) -> void:
+ main.world.npc_records=records.duplicate(true)
+ main.npcs.sync()
+@rpc("any_peer","call_remote","reliable",0)
+func request_appearance(value: Dictionary) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if not multiplayer.is_server() or not main.saves.peer_profiles.has(id) or not preload("res://data/appearance.gd").valid(value):return
+ var body=main.get_node("Players").get_node_or_null(str(id))
+ if body==null:return
+ body.appearance=preload("res://data/appearance.gd").clean(value)
+ main.combat.player_changed.emit(id,main.combat.player_data(body))

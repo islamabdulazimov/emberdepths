@@ -56,13 +56,15 @@ func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
  if data.is_empty():
   if entities.has(id):
    if visual_remove and is_instance_valid(main.get("effects")):
+    main.effects.creature_death(entities[id].kind,entities[id].position,entities[id].visual_facing)
     main.effects.burst("spirit" if entities[id].kind == "spirit" else "death",entities[id].position+Vector2(0,-5))
    remove_child(entities[id])
    entities[id].queue_free()
    entities.erase(id)
   remote_targets.erase(id)
   return
- if not entities.has(id):
+ var new_entity := not entities.has(id)
+ if new_entity:
   var body := CharacterBody2D.new()
   body.set_script(Enemy)
   body.kind = data.kind
@@ -71,7 +73,7 @@ func set_entity(id: int, data: Dictionary, visual_remove: bool = false) -> void:
   add_child(body)
   entities[id] = body
  var body = entities[id]
- if body.health > int(data.health):
+ if not new_entity and body.health > int(data.health):
   body.hurt_flash = 0.16
  body.base_health = int(data.get("base_health", Rules.ENEMIES[data.kind].health))
  body.scaling_players = int(data.get("scaling_players", 1))
@@ -140,7 +142,7 @@ func line_clear(from: Vector2, to: Vector2, exclude: Array[RID] = []) -> bool:
 
 func player_data(body: CharacterBody2D) -> Dictionary:
  var state: Dictionary = body.resources.snapshot()
- state.merge({"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
+ state.merge({"appearance":body.appearance.duplicate(true),"medicine_cooldown": body.medicine_cooldown, "medicine_progress": body.medicine_progress, "action":body.fighter.snapshot()})
  state.merge({"dead": body.dead, "unclothed": body.unclothed, "immunity": body.hurt_immunity, "respawn": body.respawn_remaining, "position": body.position, "velocity": body.velocity, "revision": body.life_revision, "last_chest": body.last_chest_position, "profile": body.profile_id, "since_hurt": body.since_hurt, "regen_fraction": body.regen_fraction, "knockback": body.knockback_remaining})
  return state
 
@@ -159,6 +161,7 @@ func apply_player_state(id: int, data: Dictionary) -> void:
  body.medicine_cooldown = float(data.get("medicine_cooldown",0))
  body.medicine_progress = float(data.get("medicine_progress",0))
  if healed > 0: body.show_heal(healed)
+ body.appearance=preload("res://data/appearance.gd").clean(data.get("appearance",body.appearance))
  body.dead = data.dead
  body.unclothed = data.unclothed
  body.hurt_immunity = data.immunity
@@ -416,7 +419,7 @@ func _physics_process(delta: float) -> void:
    if distance < nearest:
     nearest = distance
     target = body
-  if main.world.generator_version == 2 and nearest > 640 and enemy.kind != "spirit":
+  if main.world.generator_version >= 2 and nearest > 640 and enemy.kind != "spirit":
    if nearest > 900 and not enemy.site_guard:
     set_entity(id,{})
     entity_changed.emit(id,{})
@@ -474,7 +477,7 @@ func _physics_process(delta: float) -> void:
    spawn_timer = 8.0 if is_night() else 25.0
 
 func _try_spawn(alive: Array) -> bool:
- if main.world.generator_version == 2: return main.exploration.try_spawn(alive)
+ if main.world.generator_version >= 2: return main.exploration.try_spawn(alive)
  var count := 0
  for enemy in entities.values():
   if enemy.kind == "ashling":

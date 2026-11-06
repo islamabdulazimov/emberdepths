@@ -22,6 +22,7 @@ var visual_target_facing := 1
 var visual_turn_age := 0.1
 var visual_width := 1.0
 var visual_anticipation := 0.0
+var visual_stride := 0.0
 var visual_movement := 0.0
 var motion_track = preload("res://scripts/visuals/motion_track.gd").new()
 var visual_health := -1
@@ -63,6 +64,7 @@ func _process(delta: float) -> void:
  elif attack_state == "recovery": target = -0.45*(1-smoothstep(0,0.65,t))
  visual_anticipation = lerpf(visual_anticipation,target,1-exp(-36*delta))
  visual_movement = lerpf(visual_movement,velocity.x,1-exp(-22*delta))
+ visual_stride += delta*(absf(visual_movement)/13.333 if kind not in ["ashweaver","spirit"] else 2.5)
  var target_face := attack_facing if attack_state != "chase" else (-1 if velocity.x < -1 else (1 if velocity.x > 1 else visual_target_facing))
  if target_face != visual_target_facing:
   visual_target_facing = target_face
@@ -75,17 +77,7 @@ func _process(delta: float) -> void:
  queue_redraw()
 
 func _draw() -> void:
- var art = preload("res://scripts/visuals/enemy_art.gd")
- if kind == "spirit": art.draw_spirit(self,clock,velocity,hurt_flash)
- elif Creatures.DEFINITIONS.has(kind): preload("res://scripts/visuals/creature_art.gd").draw_body(self)
- else:
-  art.draw_ashling(self,clock,Vector2(visual_movement,velocity.y),hurt_flash,night,visual_facing,visual_anticipation,visual_width)
-  if attack_state in ["windup","active"]:
-   var color := Color("bd8058") if attack_state == "windup" else Color("e1dec2")
-   draw_line(Vector2(attack_facing*9,-7),Vector2(attack_facing*Battle.ASHLING.reach,-7),Color(color,0.35),1)
-   draw_rect(Rect2(attack_facing*10-1,-18,3,4),color)
-  if attack_state == "stagger":
-   draw_line(Vector2(-3,-20),Vector2(3,-24),Color("e1dec2"),2)
+ preload("res://scripts/visuals/actor_atlas.gd").draw_actor(self)
  var bar_y: float = -float(Creatures.DEFINITIONS[kind].visual_height)-5 if Creatures.DEFINITIONS.has(kind) else -23.0
  draw_rect(Rect2(-8,bar_y,16,2),Color("18252e"))
  draw_rect(Rect2(-8,bar_y,16*float(health)/max_health,2),Color("bd8058") if kind == "ashling" else Color("88aaa9"))

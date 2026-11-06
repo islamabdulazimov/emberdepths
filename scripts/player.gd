@@ -1,4 +1,5 @@
 extends CharacterBody2D
+var appearance: Dictionary = preload("res://data/appearance.gd").DEFAULT.duplicate()
 var fighter = preload("res://scripts/fighter_state.gd").new()
 const Battle = preload("res://data/battle.gd")
 const Art = preload("res://scripts/visuals/art_direction.gd")
@@ -27,6 +28,9 @@ var visual_hurt := 0.0
 var visual_step := -1
 var visual_initialized := false
 var visual_was_dead := false
+var visual_death_age := 1.0
+var visual_alive_unclothed := false
+var visual_death_unclothed := false
 var visual_health := 100
 var work_remaining := 0.0
 var work_kind := "pick"
@@ -151,13 +155,23 @@ func _process(delta: float) -> void:
  work_remaining = maxf(0,work_remaining-delta)
  visual_hurt = maxf(0,visual_hurt-delta)
  if visual_initialized:
-  if dead and not visual_was_dead: emit_visual("death",Vector2(0,-5))
+  if dead and not visual_was_dead:
+   visual_death_age=0
+   visual_death_unclothed=visual_alive_unclothed
+   emit_visual("death",Vector2(0,-5))
   elif not dead and visual_was_dead: emit_visual("respawn",Vector2(0,-5))
   elif health < visual_health:
    visual_hurt = 0.16
    visual_hit_direction = signf(velocity.x) if absf(velocity.x) > 1 else -float(facing)
    emit_visual("hurt",Vector2(0,-5),Vector2(-facing,-1))
  visual_initialized = true
+ if dead:
+  visual_death_age+=delta
+  self_modulate.a=1-smoothstep(0.3,0.65,visual_death_age)
+  queue_redraw()
+ else:
+  self_modulate.a=1
+  visual_alive_unclothed=unclothed
  visual_was_dead = dead
  visual_health = health
  heal_flash_remaining = maxf(0, heal_flash_remaining - delta)
@@ -173,7 +187,7 @@ func _process(delta: float) -> void:
  if not dead:
   visual_idle_clock += delta
   visual_speed = lerpf(visual_speed,velocity.x,1-exp(-24*delta))
-  visual_clock += delta * absf(visual_speed) * 0.16
+  visual_clock += delta * absf(visual_speed) * (TAU/(12.0/0.55))
   var step_index := floori(visual_clock/PI)
   if grounded and absf(velocity.x) > 30 and step_index != visual_step: emit_visual("step",Vector2(0,10),Vector2(-signf(velocity.x),-0.3))
   visual_step = step_index
@@ -187,9 +201,21 @@ func _process(delta: float) -> void:
   queue_redraw()
 
 func _draw() -> void:
- if dead: return
+ if dead and visual_death_age>=0.65: return
+ var bare:=visual_death_unclothed if dead else unclothed
  var pose: Dictionary = visual_pose if not visual_pose.is_empty() else Pose.sample(visual_clock,velocity.x,velocity.y,is_on_floor(),0)
- var skin := Color("cda88d").lerp(Art.IVORY,visual_hurt*3)
+ if dead:
+  pose=pose.duplicate()
+  var collapse:=smoothstep(0,0.4,visual_death_age)
+  pose.scale=Vector2(1,lerpf(1,0.55,collapse))
+  pose.offset=Vector2(0,3*collapse)
+  pose.lean=0.15*collapse
+  pose.front_foot=Vector2(2,10).lerp(Vector2(10,6),collapse)
+  pose.back_foot=Vector2(-2,10).lerp(Vector2(-8,6),collapse)
+  pose.front_hand=Vector2(pose.front_hand).lerp(Vector2(9,5),collapse)
+  pose.back_hand=Vector2(pose.back_hand).lerp(Vector2(-7,4),collapse)
+  pose.head=Vector2(pose.head)+Vector2(3,2)*collapse
+ var skin := preload("res://data/appearance.gd").color(appearance).lerp(Art.IVORY,visual_hurt*3)
  var coat: Color = Art.JADE.darkened(0.13).lerp(Art.IVORY,visual_hurt*3)
  var trousers: Color = Art.SHADOW
  # A contact shadow should not travel through the air with the body.
@@ -245,20 +271,21 @@ func _draw() -> void:
   for point in contact_points: bottom = maxf(bottom,(transform*Vector2(point)).y)
   transform.origin.y += (10-bottom)*visual_roll
  draw_set_transform_matrix(transform)
- if not unclothed:
+ if not bare:
   # Two scarf tails move at different phases; only the artwork moves.
   var tail: float = pose.cloth
   draw_colored_polygon(PackedVector2Array([Vector2(-3,-10),Vector2(-8,-7),Vector2(-10+tail,3),Vector2(-6+tail,1),Vector2(-4,5),Vector2(-2,-3)]),Art.INK)
   draw_line(Vector2(-5,-8),Vector2(-7+tail,1),Art.COPPER,2)
  _draw_limb(Vector2(-4,-5),Vector2(-6,-2),pose.back_hand,skin.darkened(0.2),3)
- _draw_leg(Vector2(-2,3),pose.back_foot,skin.darkened(0.2) if unclothed else trousers.darkened(0.15),Art.INK)
- _draw_leg(Vector2(2,3),pose.front_foot,skin if unclothed else trousers,Art.INK)
- draw_rect(Rect2(-5,-8,10,12),skin if unclothed else Art.INK)
- if unclothed:
+ _draw_leg(Vector2(-2,3),pose.back_foot,skin.darkened(0.2) if bare else trousers.darkened(0.15),Art.INK)
+ _draw_leg(Vector2(2,3),pose.front_foot,skin if bare else trousers,Art.INK)
+ draw_rect(Rect2(-5,-8,10,12),skin if bare else Art.INK)
+ if bare:
   draw_rect(Rect2(-4,-7,8,10),skin)
   draw_rect(Rect2(-4,1,8,4),Art.SHADOW)
  else:
-  draw_colored_polygon(PackedVector2Array([Vector2(-4,-8),Vector2(4,-8),Vector2(5,5),Vector2(1,6),Vector2(-1,3),Vector2(-5,5)]),coat)
+  var waist := 3.0 if appearance.get("gender","male") == "female" else 4.0
+  draw_colored_polygon(PackedVector2Array([Vector2(-4,-8),Vector2(4,-8),Vector2(waist,1),Vector2(5,5),Vector2(1,6),Vector2(-1,3),Vector2(-5,5),Vector2(-waist,1)]),coat)
   draw_rect(Rect2(-4,-7,3,10),Art.JADE)
   draw_line(Vector2(0,-7),Vector2(1,2),Art.MIST,1)
   draw_rect(Rect2(-5,0,10,2),Art.COAL)
@@ -267,10 +294,12 @@ func _draw() -> void:
   draw_rect(Rect2(3,-7,3,1),Art.EMBER)
  var head: Vector2 = pose.head
  draw_set_transform_matrix(transform.translated_local(head))
+ if appearance.get("hair","short") == "long":
+  draw_colored_polygon(PackedVector2Array([Vector2(-5,-17),Vector2(1,-18),Vector2(4,-13),Vector2(5,-3),Vector2(1,-5),Vector2(-1,-3),Vector2(-6,-4)]),Art.COAL)
  draw_rect(Rect2(-4,-17,8,9),Art.INK)
  draw_rect(Rect2(-3,-16,7,7),skin)
  draw_rect(Rect2(-3,-15,2,6),skin.darkened(0.2))
- if not unclothed:
+ if not bare:
   # Folded ash hood, porcelain half-mask, one visible eye.
   draw_colored_polygon(PackedVector2Array([Vector2(-5,-10),Vector2(-5,-17),Vector2(-2,-20),Vector2(3,-19),Vector2(5,-16),Vector2(4,-15),Vector2(0,-17),Vector2(-2,-14),Vector2(-2,-10)]),Art.SHADOW)
   draw_line(Vector2(-4,-17),Vector2(-1,-19),Art.SLATE,1)

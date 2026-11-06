@@ -9,6 +9,10 @@ var combat: Node2D
 var encounter: Node2D
 var combat_zone: Node2D
 var effects: Node2D
+var npcs: Node
+var pause_ui: CanvasLayer
+var pause_open := false
+var input_latched := true
 var exploration: Node
 var storage: Node2D
 var boss_ui: Control
@@ -74,6 +78,10 @@ func _ready() -> void:
  exploration.name = "Exploration"
  exploration.set_script(preload("res://scripts/exploration.gd"))
  add_child(exploration)
+ npcs=Node.new()
+ npcs.name="Residents"
+ npcs.set_script(preload("res://scripts/residents.gd"))
+ add_child(npcs)
  effects = Node2D.new()
  effects.name = "VisualEffects"
  effects.set_script(preload("res://scripts/visuals/effects.gd"))
@@ -110,7 +118,29 @@ func _ready() -> void:
  boss_ui.main = self
  $HUD.add_child(boss_ui)
  _create_network_ui()
+ if not has_meta("combat_test") and not GameApp.selected_world.is_empty() and not GameApp.new_game and not FileAccess.file_exists(saves.save_path) and not FileAccess.file_exists(saves.save_path+".bak"):
+  GameApp.menu_error="Файл выбранного мира не найден. Другие миры сохранены."
+  get_tree().call_deferred("change_scene_to_file","res://scenes/menu.tscn")
+  return
  saves.startup()
+ if not GameApp.selected_world.is_empty(): saves.new_button.hide()
+ npcs.sync()
+ if not GameApp.selected_world.is_empty() and not has_meta("combat_test"):
+  if saves.write_blocked:
+   GameApp.menu_error=saves.status
+   get_tree().call_deferred("change_scene_to_file","res://scenes/menu.tscn")
+   return
+  if GameApp.new_game:
+   exploration.initialize_loot()
+   if not saves.save_now():
+    GameApp.menu_error=saves.status
+    get_tree().call_deferred("change_scene_to_file","res://scenes/menu.tscn")
+    return
+  GameApp.new_game=false
+  GameApp.touch_world()
+ pause_ui=CanvasLayer.new()
+ pause_ui.set_script(preload("res://scripts/ui/pause_menu.gd"))
+ add_child(pause_ui)
  _arena_button()
  get_tree().auto_accept_quit = false
  for arg in OS.get_cmdline_user_args():
@@ -124,6 +154,7 @@ func add_player(id: int, position_value: Vector2) -> void:
   return
  var body = PlayerScene.instantiate()
  body.name = str(id)
+ if id==1 and not GameApp.selected_character.is_empty(): body.appearance=preload("res://data/appearance.gd").clean(GameApp.selected_character.appearance)
  if id == 1 and is_instance_valid(saves):
   body.profile_id = saves.profile_id
  $Players.add_child(body)
@@ -202,7 +233,7 @@ func _physics_process(_delta: float) -> void:
    network_status.text += " · В мире: %d/4" % $Players.get_child_count()
  if not is_instance_valid(player):
   return
- var typing := get_viewport().gui_get_focus_owner() is LineEdit
+ var typing := get_viewport().gui_get_focus_owner() is LineEdit or ui_blocked()
  var axis := 0.0 if typing else Input.get_axis("move_left", "move_right")
  var jump := not typing and Input.is_action_just_pressed("jump")
  if network.active:
@@ -227,11 +258,15 @@ func _bind_key(action: String, code: Key) -> void:
   InputMap.action_add_event(action, event)
 
 
+func ui_blocked() -> bool:
+ return pause_open or input_latched or (is_instance_valid(npcs) and npcs.opened)
+
 func _process(delta: float) -> void:
+ if input_latched and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT): input_latched=false
  fps_clock += delta
  if fps_clock >= 0.5:
   fps_clock = fmod(fps_clock,0.5)
-  fps_label.text = "%d FPS · цель 240" % Engine.get_frames_per_second()
+  fps_label.text = "%d FPS · %s" % [Engine.get_frames_per_second(),"без лимита" if Engine.max_fps==0 else "лимит %d" % Engine.max_fps]
  presentation_clock += delta
  if delta > 0 and presentation_clock < 1.0/30: return
  presentation_clock = fmod(presentation_clock,1.0/30)
@@ -242,8 +277,8 @@ func _process(delta: float) -> void:
  var underground := clampf((depth - 2.0) / 13.0, 0.0, 1.0)
  var daylight := Daylight.sample(combat.world_time)
  var cave_color := Color("172331")
- if world.generator_version == 2:
-  cave_color = preload("res://data/world_regions.gd").AMBIENT.roots.lerp(preload("res://data/world_regions.gd").AMBIENT.deep,smoothstep(78,90,player.position.y/16.0))
+ if world.generator_version >= 2:
+  cave_color = preload("res://data/world_regions.gd").AMBIENT.roots.lerp(preload("res://data/world_regions.gd").AMBIENT.deep,smoothstep(preload("res://data/world_regions.gd").deep_start(world)-6,preload("res://data/world_regions.gd").deep_start(world)+6,player.position.y/16.0))
  ambient.color = daylight.ambient.lerp(cave_color,underground)
  sky.underground = underground
 

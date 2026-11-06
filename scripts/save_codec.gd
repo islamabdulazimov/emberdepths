@@ -24,7 +24,7 @@ func encode(value: Variant) -> Variant:
 
 func decode(value: Variant, depth: int = 0) -> Variant:
  nodes += 1
- if depth > 24 or nodes > 600000:
+ if depth > 24 or nodes > 4000000:
   error = "Слишком сложное сохранение"
   return null
  if value is Dictionary:

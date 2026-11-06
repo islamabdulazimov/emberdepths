@@ -44,6 +44,7 @@ static func cell(value: Variant, width: int, depth: int) -> bool:
 static func life(value: Variant, width: int, depth: int) -> bool:
  if not value is Dictionary or not value.has_all(["health", "dead", "unclothed", "immunity", "respawn", "position", "velocity", "revision", "last_chest", "since_hurt", "regen_fraction", "knockback", "profile"]):
   return false
+ if value.has("appearance") and not preload("res://data/appearance.gd").valid(value.appearance): return false
  if not integer(value.get("max_health", 100), 1, 1000000) or not integer(value.health, 0, int(value.get("max_health", 100))) or not value.dead is bool or not value.unclothed is bool or value.dead != (value.health == 0):
   return false
  if not integer(value.get("max_mana", 50), 1, 1000000) or not integer(value.get("mana", value.get("max_mana", 50)), 0, int(value.get("max_mana", 50))):
@@ -61,12 +62,12 @@ static func life(value: Variant, width: int, depth: int) -> bool:
 static func validate(value: Variant) -> String:
  if not value is Dictionary or not value.has_all(["format", "generator", "host_profile", "world", "profiles", "drops", "combat", "next_drop"]):
   return "Неполное сохранение"
- if value.format != 1 or value.generator not in [1,2]:
+ if value.format != 1 or value.generator not in [1,2,3]:
   return "Неподдерживаемая версия сохранения или генератора"
  var world: Variant = value.world
  if not world is Dictionary or not world.has_all(["seed", "width", "depth", "blocks", "walls", "torches"]):
   return "Неполный мир"
- if not integer(world.seed, -2147483648, 2147483647) or not integer(world.width, 32, 512) or not integer(world.depth, 32, 256):
+ if not integer(world.seed, -2147483648, 2147483647) or not integer(world.width, 32, 1024) or not integer(world.depth, 32, 256):
   return "Неверные параметры мира"
  if not world.get("sites",{}) is Dictionary or world.get("sites",{}).size() > 16: return "Неверное состояние руин"
  for site_id in world.get("sites",{}):
@@ -77,6 +78,11 @@ static func validate(value: Variant) -> String:
  for anchor in world.get("storage_opened",[]):
   if not anchor is Vector2i or not world.get("storage",{}).has(anchor): return "Открытый сундук отсутствует"
  if int(value.generator) == 2 and (int(world.width) != 384 or int(world.depth) != 160): return "Неверный размер мира генератора 2"
+ if int(value.generator) == 3 and Vector2i(world.width,world.depth) not in [Vector2i(512,192),Vector2i(896,256)]: return "Неверный размер нового мира"
+ if not world.get("npcs",{}) is Dictionary or world.get("npcs",{}).size()>2:return "Неверные жители"
+ for id in world.get("npcs",{}):
+  var resident:Variant=world.npcs[id]
+  if not preload("res://data/residents.gd").DEFINITIONS.has(id) or not resident is Dictionary or resident.get("id")!=id or not point(resident.get("position"),int(world.width),int(world.depth)) or not point(resident.get("home"),int(world.width),int(world.depth)) or not resident.get("site") is String:return "Неверный житель"
  var width := int(world.width)
  var depth := int(world.depth)
  if not world.blocks is Dictionary or not world.walls is Dictionary or not world.torches is Array or world.blocks.size() > width * depth or world.walls.size() > width * depth or world.torches.size() > 2048:

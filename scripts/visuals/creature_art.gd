@@ -11,7 +11,7 @@ static func draw_body(canvas: Node2D) -> void:
  canvas.draw_set_transform(Vector2(0,-absf(bob)),0,squash*Vector2(canvas.visual_facing*canvas.visual_width,1))
  canvas.draw_texture_rect_region(TEXTURES[canvas.kind],Rect2(-32,-46,64,48),Rect2(frame*64,0,64,48),Color.WHITE.lerp(Color("efd0af"),minf(0.7,canvas.hurt_flash*4)))
  canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
- if canvas.attack_state in ["windup","active"]:
+ if preload("res://data/presentation.gd").combat_debug and canvas.attack_state in ["windup","active"]:
   var area: Rect2 = canvas.attack_area()
   area.position -= canvas.position
   var color := Color("e1dec2") if canvas.attack_state == "active" else Color("bd8058")

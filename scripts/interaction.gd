@@ -13,6 +13,7 @@ var build_cooldown := 0.0
 var outline_color := Color.WHITE
 
 func _unhandled_key_input(event: InputEvent) -> void:
+ if get_parent().ui_blocked(): return
  if get_viewport().gui_get_focus_owner() is LineEdit:
   return
  if event is InputEventKey and event.pressed and not event.echo:
@@ -41,7 +42,7 @@ func _unhandled_input(event: InputEvent) -> void:
     network.open_storage_local(cell,selected_slot)
 
 func can_use_mouse() -> bool:
- return is_instance_valid(player) and not player.dead and player.fighter.mode == "idle" and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
+ return not get_parent().ui_blocked() and is_instance_valid(player) and not player.dead and player.fighter.mode == "idle" and not network.stopping and not get_parent().inventory_ui.opened and get_viewport().gui_get_hovered_control() == null and (not network.active or network.connected)
 
 func _process(delta: float) -> void:
  if not is_instance_valid(player):
@@ -118,7 +119,7 @@ func _process(delta: float) -> void:
   var grave: Vector2i = world.cell_at(player.last_chest_position)
   grave_text = " · Сундук (%d, %d)" % [grave.x, grave.y]
  var location: Vector2i = world.cell_at(player.position)
- label.text = "%s%s · %s\n%s%s\nSeed %d · Вы (%d, %d) · Esc — инвентарь · Shift — перекат · F — парирование" % [health_text + " · " if health_text != "" else "", combat.time_label()+((" · "+world.describe_location(location)) if world.generator_version == 2 else ""), definition.get("name", "Пустой слот"),status,grave_text,world.world_seed,location.x,location.y]
+ label.text = "%s%s · %s\n%s%s\nSeed %d · Вы (%d, %d) · Esc — инвентарь · Shift — перекат · F — парирование" % [health_text + " · " if health_text != "" else "", combat.time_label()+((" · "+world.describe_location(location)) if world.generator_version >= 2 else ""), definition.get("name", "Пустой слот"),status,grave_text,world.world_seed,location.x,location.y]
  label.tooltip_text = "A/D — движение · Space — прыжок\nЛКМ — инструмент / удар · ПКМ — стройка / дверь / сундук\n1–0 / колесо — панель · Esc — инвентарь · Shift — перекат · F — парирование"
  queue_redraw()
 

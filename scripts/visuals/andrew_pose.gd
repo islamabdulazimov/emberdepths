@@ -1,5 +1,14 @@
 extends RefCounted
 # Presentation only: never drives collisions, timers, hitboxes or network state.
+static func foot(clock: float,side: float,weight: float) -> Vector2:
+ var t:=fposmod(clock/TAU,1.0)
+ var x:=lerpf(9,-9,t/0.6)
+ var y:=0.0
+ if t>=0.6:
+  var u:=(t-0.6)/0.4
+  x=(2*u*u*u-3*u*u+1)*-9+(u*u*u-2*u*u+u)*-12+(-2*u*u*u+3*u*u)*9+(u*u*u-u*u)*-12
+  y=-pow(sin(u*PI),2)*5
+ return Vector2(side*10+x*weight,y*weight)
 static func sample(phase: String, elapsed: float, duration: float, clock: float, speed: float) -> Dictionary:
  var t := clampf(elapsed / maxf(duration, 0.001), 0.0, 1.0)
  var ease := t*t*t*(t*(t*6-15)+10)
@@ -8,8 +17,10 @@ static func sample(phase: String, elapsed: float, duration: float, clock: float,
  var weight_shift := sin(clock*2)*walk
  var p := {"offset": Vector2(0, -absf(step) * walk * 1.5 + sin(clock * 0.3) * 0.35), "scale": Vector2.ONE, "lean": step*walk*0.025, "rotation": 0.0, "turn": 1.0,
   "front_elbow": Vector2(25, -31), "front_hand": Vector2(24, -19), "back_elbow": Vector2(-25, -32), "back_hand": Vector2(-23, -20),
-  "front_foot": Vector2(10 + step * walk * 7, -maxf(0, step) * walk * 4), "back_foot": Vector2(-10 - step * walk * 7, -maxf(0, -step) * walk * 4)}
+  "front_foot": foot(clock,1,walk), "back_foot": foot(clock+PI,-1,walk)}
  p.scale = Vector2(1+absf(weight_shift)*0.015,1-absf(weight_shift)*0.015)
+ p.front_foot.y-=p.offset.y/p.scale.y
+ p.back_foot.y-=p.offset.y/p.scale.y
  p.front_hand.x += step * walk * 6
  p.back_hand.x -= step * walk * 6
  match phase:
