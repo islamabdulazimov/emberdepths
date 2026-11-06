@@ -6,6 +6,7 @@ var interaction: Node2D
 var network: Node
 var items: Node2D
 var combat: Node2D
+var altar:Node2D
 var encounter: Node2D
 var combat_zone: Node2D
 var effects: Node2D
@@ -130,6 +131,8 @@ func _ready() -> void:
  boss_ui.theme=preload("res://scripts/visuals/art_direction.gd").theme()
  boss_ui.main = self
  $HUD.add_child(boss_ui)
+ altar=Node2D.new();altar.name="BossAltar";altar.set_script(preload("res://scripts/boss_altar.gd"));add_child(altar)
+ encounter.ensure_altar()
  _create_network_ui()
  if not has_meta("combat_test") and not GameApp.selected_world.is_empty() and not GameApp.new_game and not FileAccess.file_exists(saves.save_path) and not FileAccess.file_exists(saves.save_path+".bak"):
   GameApp.menu_error="Файл выбранного мира не найден. Другие миры сохранены."
@@ -289,7 +292,7 @@ func _bind_key(action: String, code: Key) -> void:
 
 
 func ui_blocked() -> bool:
- return pause_open or input_latched or (is_instance_valid(player) and player.dead) or (is_instance_valid(npcs) and npcs.opened)
+ return pause_open or input_latched or (is_instance_valid(altar) and altar.opened) or (is_instance_valid(player) and player.dead) or (is_instance_valid(npcs) and npcs.opened)
 
 func _process(delta: float) -> void:
  if is_instance_valid(saves) and is_instance_valid(saves.save_button):saves.save_button.get_parent().hide();saves.save_label.hide()

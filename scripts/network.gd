@@ -156,6 +156,7 @@ func _admit_peer(id: int, profile_id: String, key: String) -> void:
  var existing := main.get_node("Players").get_children()
  main.add_player(id, main.world.safe_spawn_position(main.world.world_width / 2 + existing.size()))
  var selected: int = main.saves.attach_peer(id, profile_id, key)
+ main.encounter.exclude_unlisted(profile_id)
  peer_admitted.emit(id)
  var roster: Dictionary = {}
  for body in main.get_node("Players").get_children():
@@ -186,6 +187,9 @@ func despawn_remote(id: int) -> void:
 func _peer_left(id: int, _taking_inventory: bool = false) -> void:
  main.storage.close_view(id,"")
  pending.erase(id)
+ altar_requests.erase(id)
+ var leaving=main.get_node("Players").get_node_or_null(str(id))
+ if leaving!=null:main.encounter.choices.erase(leaving.profile_id)
  if active and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED and multiplayer.is_server():
   main.saves.detach_peer(id)
   _broadcast("despawn_remote", [id])
@@ -680,3 +684,20 @@ func respawn_local() -> void:
 func request_respawn() -> void:
  var id:=multiplayer.get_remote_sender_id()
  if multiplayer.is_server() and main.saves.peer_profiles.has(id):main.survival.respawn_request(id)
+
+
+func altar_local(action:String) -> void:
+ if not active or (connected and multiplayer.is_server()):main.altar.feedback=main.encounter.choose(int(str(main.player.name)),action)
+ elif connected:request_altar.rpc_id(1,action)
+@rpc("any_peer","call_remote","reliable",0)
+func request_altar(action:String) -> void:
+ var id:=multiplayer.get_remote_sender_id()
+ if not multiplayer.is_server() or not main.saves.peer_profiles.has(id):return
+ var now:=Time.get_ticks_msec()
+ if now-int(altar_requests.get(id,-1000))<150:return
+ altar_requests[id]=now
+ var result:String=main.encounter.choose(id,action)
+ altar_result.rpc_id(id,result)
+@rpc("authority","call_remote","reliable",0)
+func altar_result(message:String) -> void:main.altar.feedback=message
+var altar_requests:Dictionary={}

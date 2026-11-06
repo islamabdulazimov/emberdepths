@@ -282,7 +282,7 @@ func resolve_attack(id: int, direction: Vector2, active_strike: bool = false) ->
   if offset.length() <= float(profile.reach) + size.x/2 and (offset.length() < 1 or offset.normalized().dot(direction) >= float(profile.get("arc_dot",0.2))) and line_clear(origin, target):
    hits["enemy:%d" % target_id] = true
    hit_entity(target_id, int(profile.damage), direction)
- if is_instance_valid(main.encounter.actor) and not main.encounter.withdrawn.has(body.profile_id):
+ if is_instance_valid(main.encounter.actor) and main.encounter.can_damage(body.profile_id):
   var boss = main.encounter.actor
   var target: Vector2 = boss.position + Vector2(0, -29)
   var offset: Vector2 = target - origin

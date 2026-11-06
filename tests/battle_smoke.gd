@@ -118,7 +118,7 @@ func run() -> void:
  main.encounter.enabled = true
  main.encounter.pending = true
  main.encounter.kills = 3
- check_result(main.encounter.try_spawn(),"Existing three-kill progression still summons Andrew")
+ check_result(main.encounter.try_spawn(),"Explicit attack fixture summons Andrew")
  var boss = main.encounter.actor
  boss.set_physics_process(false)
  boss.position = Vector2(1608,352)

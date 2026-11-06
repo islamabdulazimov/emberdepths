@@ -1,6 +1,7 @@
 extends RefCounted
 # Provisional handcraft recipes; no workbench needed in this prototype.
 const DEFINITIONS := {
+ "andrew_seal":{"output":"andrew_seal","count":1,"ingredients":preload("res://data/boss_attempts.gd").INGREDIENTS},
  "spark_binding":{"output":"spark_binding","count":1,"ingredients":{"wood":2,"emberstone":1}},
  "traveler_knot":{"output":"traveler_knot","count":1,"ingredients":{"wood":8,"emberstone":2}},
  "stone_pick": {"output": "stone_pick", "count": 1, "ingredients": {"stone": 4, "dirt": 2}},

@@ -265,7 +265,7 @@ func capture() -> Dictionary:
  combat["spawn_sequence"] = main.combat.spawn_sequence
  combat["next_entity"] = main.combat.next_entity_id
  combat["next_chest"] = main.combat.next_chest_id
- return {"format": 1, "combat_rules":3, "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
+ return {"format": 1, "combat_rules":3, "boss_attempts":main.encounter.persistent_data(), "generator": main.world.generator_version, "host_profile": profile_id, "world": {"seed": main.world.world_seed, "width": main.world.world_width, "depth": main.world.world_depth, "blocks": main.world.changes.duplicate(true), "walls": main.world.wall_changes.duplicate(true), "torches": main.world.torches.keys(), "trees": main.world.tree_snapshot(), "doors": main.world.door_snapshot(), "storage": main.storage.snapshot(),"storage_opened":main.storage.opened_snapshot(),"npcs":main.world.npc_records.duplicate(true),"sites":main.world.site_progress.duplicate(true)}, "profiles": profiles.duplicate(true), "drops": main.items.snapshot(), "next_drop": main.items.next_drop_id, "combat": combat}
 
 func _restore_life(peer_id: int, life: Dictionary) -> void:
  var body = main.get_node("Players").get_node(str(peer_id))
@@ -346,6 +346,7 @@ func restore(state: Dictionary) -> String:
  peer_profiles = {1: profile_id}
  main.items.inventory_for(1).load_data(profiles[profile_id].inventory)
  _restore_life(1, profiles[profile_id].life)
+ main.encounter.restore_journal(state.get("boss_attempts",{}))
  main.interaction.selected_slot = int(profiles[profile_id].selected)
  main.interaction.mining_time = 0
  main.interaction.mining_cell = Vector2i(-1, -1)
@@ -508,6 +509,7 @@ func new_world() -> void:
  peer_profiles = {1: profile_id}
  write_blocked = false
  _capture_peer(1)
+ main.encounter.ensure_altar()
  save_now()
 
 func begin_visit() -> bool:

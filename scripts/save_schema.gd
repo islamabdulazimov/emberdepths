@@ -89,6 +89,7 @@ static func validate(value: Variant) -> String:
   if not preload("res://data/residents.gd").DEFINITIONS.has(id) or not resident is Dictionary or resident.get("id")!=id or not point(resident.get("position"),int(world.width),int(world.depth)) or not point(resident.get("home"),int(world.width),int(world.depth)) or not resident.get("site") is String:return "Неверный житель"
  var width := int(world.width)
  var depth := int(world.depth)
+ if value.has("boss_attempts") and not preload("res://scripts/boss_attempt.gd").valid(value.boss_attempts,width,depth):return "Неверный журнал попыток босса"
  if not world.blocks is Dictionary or not world.walls is Dictionary or not world.torches is Array or world.blocks.size() > width * depth or world.walls.size() > width * depth or world.torches.size() > 2048:
   return "Слишком большой или неверный журнал мира"
  for position in world.blocks:

@@ -18,13 +18,14 @@ func run() -> void:
  for i in range(3):
   var id: int = main.combat.spawn_entity("ashling", Vector2(1700, 300))
   main.combat.hit_entity(id, 100000, Vector2.RIGHT)
- check_result(main.encounter.kills == 3 and main.encounter.pending and not main.encounter.used_once, "Three actual normal kills schedule one shared boss")
+ check_result(main.encounter.kills == 3 and not main.encounter.pending and not main.encounter.used_once, "Normal kills no longer schedule an automatic boss")
  var spirit: int = main.combat.spawn_entity("spirit", Vector2(1700, 300), Vector2(1700, 300))
  main.combat.hit_entity(spirit, 1000, Vector2.RIGHT)
  main.combat.hit_entity(spirit, 1000, Vector2.RIGHT)
  check_result(main.encounter.kills == 3, "Spirit does not increase ordinary kill counter")
  for x in range(75, 118):
   for y in range(72): main.world.apply_edit(Vector2i(x,y), 2)
+ main.encounter.pending = true # Explicit legacy spawn harness, never gameplay progression.
  main.encounter.enabled = true
  check_result(not main.encounter.try_spawn() and main.encounter.pending and not main.encounter.used_once, "Blocked spawn retries without consuming or duplicating Andrew")
  main.world.generate()

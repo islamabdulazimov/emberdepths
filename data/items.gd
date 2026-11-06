@@ -3,6 +3,7 @@ extends RefCounted
 const Battle = preload("res://data/battle.gd")
 const STACK_LIMIT := 99
 const DEFINITIONS := {
+ "andrew_seal":{"name":"Печать вызова Andrew","description":"Повторный призыв у алтаря. Один предмет на всю команду; расходуется только после успешного появления босса.","kind":"summon","stack":20},
  "dirt": {"name": "Земля", "kind": "solid", "block": 1, "atlas": Vector2i(1, 0)},
  "stone": {"name": "Камень", "kind": "solid", "block": 2, "atlas": Vector2i(2, 0)},
  "turf": {"name": "Дёрн", "kind": "solid", "block": 0, "atlas": Vector2i(0, 0)},
@@ -45,5 +46,6 @@ static func stats(item_id:String) -> String:
  return ""
 static func icon(item_id: String) -> Texture2D:
  if not DEFINITIONS.has(item_id):return null
+ if item_id=="andrew_seal":return preload("res://assets/icons/andrew_seal.svg")
  if not icon_cache.has(item_id):icon_cache[item_id]=load("res://assets/recast/item_%s.png"%item_id)
  return icon_cache[item_id]

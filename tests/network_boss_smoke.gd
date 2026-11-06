@@ -84,7 +84,8 @@ func run() -> void:
     for i in range(3):
      var id: int = main.combat.spawn_entity("ashling",main.world.safe_spawn_position(120))
      main.combat.hit_entity(id,100000,Vector2.RIGHT)
-    check_result(main.encounter.try_spawn(), "Three server kills summon Andrew")
+    main.encounter.pending=true # Explicit attack/replication fixture.
+    check_result(main.encounter.try_spawn(), "Explicit fixture summons Andrew")
     actor = main.encounter.actor
     actor.state.poise = 36 # Shorten only this network fixture's stagger setup.
     main.encounter.publish()

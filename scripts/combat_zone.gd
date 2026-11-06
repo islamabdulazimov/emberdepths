@@ -34,6 +34,6 @@ func _draw() -> void:
  draw_rect(area,Color("bd8058"),false,1)
  for corner in [area.position,Vector2(area.end.x,area.position.y),area.end,Vector2(area.position.x,area.end.y)]:
   draw_rect(Rect2(corner-Vector2(2,2),Vector2(4,4)),Color("e1dec2"))
- if main.has_meta("combat_test"): return # The arena has its own fixed HUD legend.
+ if main.has_meta("combat_test") or (is_instance_valid(main.altar) and main.encounter.journal.last.get("status","")=="active"): return # Fixed HUD legend avoids overlap with top player resources.
  draw_string_outline(ThemeDB.fallback_font,area.position+Vector2(5,12),"Арена · во время боя нельзя менять блоки",HORIZONTAL_ALIGNMENT_LEFT,-1,8,2,Color("18252e"))
  draw_string(ThemeDB.fallback_font,area.position+Vector2(5,12),"Арена · во время боя нельзя менять блоки",HORIZONTAL_ALIGNMENT_LEFT,-1,8,Color("e1dec2"))
